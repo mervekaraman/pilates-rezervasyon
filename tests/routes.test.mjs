@@ -48,3 +48,13 @@ test("ödeme route'u akışta bulunmaz", () => {
   assert.doesNotMatch(summary.match(/function BookingSummaryScreen\(\).*?function SummaryRow/s)?.[0] ?? "", /\/odeme/);
   assert.doesNotMatch(summary, /PaymentScreen|Ödeme bilgileri|Kart numarası/);
 });
+
+test("masaüstü uyarlaması mobil kabuğu ve v4 tokenlarını korur", () => {
+  const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /--ivory:#f1edda/);
+  assert.match(css, /--cta:#28171a/);
+  assert.match(css, /width:min\(100%,430px\)/);
+  assert.match(css, /@media\(min-width:1024px\)/);
+  assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(css, /position:fixed;inset:0 auto 0 0;width:112px/);
+});
