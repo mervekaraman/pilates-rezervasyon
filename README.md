@@ -17,12 +17,19 @@ Detaylı kapsam ve iş kuralları için [docs/MVP.md](docs/MVP.md) dosyasına ba
 ## Önerilen teknoloji
 
 - Next.js + TypeScript
-- Tailwind CSS
+- Mobil uyumlu özel CSS tasarım sistemi
 - Supabase (PostgreSQL, kimlik doğrulama ve yetkilendirme)
 - Vercel (yayınlama)
 - Vitest/Playwright (testler)
 
-Teknoloji seçimi uygulama iskeleti oluşturulmadan önce kesinleştirilecektir.
+## Yerel çalıştırma
+
+```bash
+npm install
+npm run dev
+```
+
+Ardından `http://localhost:3000` adresini açın.
 
 ## Yol haritası
 
@@ -34,4 +41,3 @@ Teknoloji seçimi uygulama iskeleti oluşturulmadan önce kesinleştirilecektir.
 6. İptal akışı
 7. Puanlama ve yorumlar
 8. Test, güvenlik ve yayınlama
-
