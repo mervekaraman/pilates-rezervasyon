@@ -22,6 +22,7 @@ test-results/
 
 # Logs
 *.log
+*.tsbuildinfo
 
 # Vercel
 .vercel/

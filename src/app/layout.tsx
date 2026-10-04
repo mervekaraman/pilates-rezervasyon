@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Instrument_Sans, Instrument_Serif } from "next/font/google";
+import { Instrument_Sans, Inter_Tight } from "next/font/google";
+import { FlowlyProvider } from "@/components/flowly/app-state";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -8,25 +9,24 @@ const instrumentSans = Instrument_Sans({
   display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
-  weight: "400",
+const interTight = Inter_Tight({
   subsets: ["latin-ext"],
-  variable: "--font-instrument-serif",
+  variable: "--font-inter-tight",
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "Nefes Pilates | Dersini seç, yerini ayır",
-    template: "%s | Nefes Pilates",
+    default: "Flowly | Pilates. Nearby. On your terms.",
+    template: "%s | Flowly",
   },
-  description: "Pilates derslerini keşfet, uygun saatini seç ve rezervasyon talebini kolayca oluştur.",
+  description: "Yakınındaki pilates stüdyolarını keşfet, dersini seç ve yerini ayır.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="tr" className={`${instrumentSans.variable} ${instrumentSerif.variable}`} data-scroll-behavior="smooth">
-      <body>{children}</body>
+    <html lang="tr" className={`${instrumentSans.variable} ${interTight.variable}`} data-scroll-behavior="smooth">
+      <body><FlowlyProvider>{children}</FlowlyProvider></body>
     </html>
   );
 }
