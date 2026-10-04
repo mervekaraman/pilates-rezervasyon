@@ -61,7 +61,7 @@ export default function HomePage() {
           <article className="manifesto-card manifesto-image">
             <span>01</span><h3>Bedeninle<br />yeniden bağ kur.</h3><i />
           </article>
-          <article className="manifesto-card manifesto-plum">
+          <article className="manifesto-card manifesto-dark">
             <span>02</span><h3>Kendine<br /><em>alan aç.</em></h3><i />
           </article>
           <article className="manifesto-card manifesto-ivory">

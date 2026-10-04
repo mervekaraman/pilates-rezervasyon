@@ -1,12 +1,11 @@
 :root {
   --ink: #1d1b1b;
-  --ink-raised: #292122;
   --ivory: #f1edda;
-  --ivory-light: #f8f4e8;
+  --ivory-light: var(--ivory);
   --moss: #5f612d;
   --plum: #77556d;
   --cold-blue: #a9bec1;
-  --muted: #716b65;
+  --muted: rgba(29, 27, 27, 0.58);
   --line: rgba(29, 27, 27, 0.15);
   --line-light: rgba(241, 237, 218, 0.22);
   --font-sans: var(--font-instrument-sans), "Arial", sans-serif;
@@ -48,24 +47,24 @@ button { color: inherit; }
 .hero-copy::after { content: ""; position: absolute; right: 0; bottom: 42px; width: 1px; height: 100px; background: var(--line-light); }
 .hero-index { position: absolute; top: 42px; right: 32px; margin: 0; color: rgba(241,237,218,.45); font-size: 10px; letter-spacing: .16em; }
 .hero-copy h1 { margin: 58px 0 24px; font-family: var(--font-serif); font-size: clamp(58px, 6vw, 91px); font-weight: 400; letter-spacing: -.06em; line-height: .84; }
-.hero-copy h1 em { display: inline-block; color: var(--cold-blue); font-weight: 400; }
+.hero-copy h1 em { display: inline-block; color: var(--ivory); font-weight: 400; }
 .hero-description { max-width: 430px; margin: 0; color: rgba(241,237,218,.66); font-size: 14px; line-height: 1.75; }
 .hero-actions { margin-top: 36px; display: flex; align-items: center; gap: 24px; }
 .hero-login { padding-bottom: 4px; border-bottom: 1px solid rgba(241,237,218,.7); font-size: 12px; }
 .trust-row { margin-top: 52px; display: flex; gap: 24px; color: rgba(241,237,218,.58); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 .trust-row span { display: inline-flex; align-items: center; gap: 7px; }
-.trust-row svg { color: var(--cold-blue); }
-.hero-photo { position: relative; min-height: 670px; background: linear-gradient(90deg, rgba(29,27,27,.18), transparent 30%), url("/images/nefes-studio-hero.png") 54% center / cover no-repeat; }
+.trust-row svg { color: var(--ivory); }
+.hero-photo { position: relative; min-height: 670px; background-color: var(--plum); background-image: linear-gradient(90deg, rgba(29,27,27,.35), rgba(29,27,27,.04)), url("/images/nefes-studio-hero.png"); background-position: center, 54% center; background-size: cover; background-repeat: no-repeat; background-blend-mode: normal, luminosity; }
 .hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(29,27,27,.12), transparent 45%, rgba(29,27,27,.48)); pointer-events: none; }
 .hero-photo-meta { position: absolute; z-index: 1; top: 28px; right: 28px; left: 28px; display: flex; justify-content: space-between; color: rgba(241,237,218,.82); font-size: 9px; letter-spacing: .18em; }
-.next-class { position: absolute; z-index: 2; right: 24px; bottom: 24px; left: 24px; min-height: 116px; display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center; padding: 20px 22px; color: var(--ink); background: rgba(241,237,218,.94); backdrop-filter: blur(14px); }
+.next-class { position: absolute; z-index: 2; right: 24px; bottom: 24px; left: 24px; min-height: 116px; display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center; padding: 20px 22px; color: var(--ink); background: rgba(241,237,218,.96); backdrop-filter: blur(14px); }
 .next-class-date { min-width: 70px; display: flex; align-items: center; gap: 10px; padding-right: 22px; border-right: 1px solid var(--line); }
 .next-class-date strong { font-family: var(--font-serif); font-size: 40px; font-weight: 400; line-height: 1; }
 .next-class-date span { color: var(--muted); font-size: 9px; line-height: 1.5; }
 .next-class h2 { margin: 5px 0 3px; font-family: var(--font-serif); font-size: 25px; font-weight: 400; }
 .next-class p { margin: 0; color: var(--muted); font-size: 11px; }
 .next-class > a { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line); transition: background .2s ease; }
-.next-class > a:hover { background: var(--cold-blue); }
+.next-class > a:hover { color: var(--ivory); background: var(--ink); }
 
 .discover-section { padding: 100px 0 110px; background: var(--ivory-light); }
 .discover-grid { display: grid; grid-template-columns: .72fr 1.28fr; gap: 100px; align-items: start; }
@@ -100,30 +99,31 @@ button { color: inherit; }
 .manifesto-card > span { position: absolute; top: 28px; left: 30px; font-size: 10px; }
 .manifesto-card h3 { margin: 0; font-family: var(--font-serif); font-size: clamp(36px, 4vw, 53px); font-weight: 400; letter-spacing: -.045em; line-height: .95; }
 .manifesto-card i { width: 54px; height: 1px; margin-top: 28px; background: currentColor; }
-.manifesto-image { color: var(--ivory); background: url("/images/nefes-studio-hero.png") 72% center / cover no-repeat; }
-.manifesto-plum { color: var(--ivory); background: radial-gradient(circle at 75% 20%, rgba(169,190,193,.22), transparent 24%), radial-gradient(circle at 40% 70%, #8d667c, transparent 38%), #392026; }
-.manifesto-plum h3 em { color: var(--cold-blue); font-weight: 400; }
-.manifesto-ivory { color: var(--ink); background: radial-gradient(ellipse at 72% 40%, rgba(95,97,45,.34), transparent 10%), radial-gradient(ellipse at 60% 45%, rgba(119,85,109,.18), transparent 27%), var(--ivory); }
-.manifesto-ivory::after { background: linear-gradient(90deg, transparent 55%, rgba(241,237,218,.7)); }
+.manifesto-image { color: var(--ivory); background-color: var(--moss); background-image: url("/images/nefes-studio-hero.png"); background-position: 72% center; background-size: cover; background-repeat: no-repeat; background-blend-mode: luminosity; }
+.manifesto-dark { color: var(--ivory); background: var(--ink) url("/images/nefes-studio-hero.png") 92% center / cover no-repeat; background-blend-mode: multiply; }
+.manifesto-dark::after { background: linear-gradient(180deg, rgba(29,27,27,.28), rgba(29,27,27,.88)); }
+.manifesto-dark h3 em { color: var(--ivory); font-weight: 400; }
+.manifesto-ivory { color: var(--ink); background: var(--ivory) url("/images/nefes-studio-hero.png") 15% center / cover no-repeat; background-blend-mode: soft-light; }
+.manifesto-ivory::after { background: linear-gradient(90deg, rgba(241,237,218,.42), rgba(241,237,218,.9)); }
 
 .process-section { padding: 110px 0; color: var(--ivory); background: var(--ink); }
 .process-layout { display: grid; grid-template-columns: .75fr 1.25fr; gap: 100px; }
 .section-heading h2 { color: var(--ivory); }
-.section-heading h2 em { color: var(--cold-blue); }
+.section-heading h2 em { color: var(--ivory); }
 .process-list { border-top: 1px solid var(--line-light); }
 .process-list article { min-height: 150px; display: grid; grid-template-columns: 70px 1fr; gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--line-light); }
 .process-list article > span { color: rgba(241,237,218,.38); font-size: 10px; letter-spacing: .14em; }
 .process-list article > div { position: relative; padding-right: 70px; }
-.process-list article svg { position: absolute; top: 2px; right: 0; color: var(--cold-blue); }
+.process-list article svg { position: absolute; top: 2px; right: 0; color: var(--ivory); }
 .process-list h3 { margin: 0 0 8px; font-family: var(--font-serif); font-size: 29px; font-weight: 400; }
 .process-list p { margin: 0; color: rgba(241,237,218,.58); font-size: 13px; line-height: 1.7; }
 
 .studio-section { padding: 110px 0; background: var(--ivory); }
 .studio-panel { display: grid; grid-template-columns: 1.12fr .88fr; min-height: 550px; }
-.studio-visual { min-height: 480px; background: linear-gradient(90deg, transparent, rgba(29,27,27,.14)), url("/images/nefes-studio-hero.png") center / cover no-repeat; }
-.studio-copy { display: flex; flex-direction: column; justify-content: center; padding: 70px; background: var(--cold-blue); }
+.studio-visual { min-height: 480px; background-color: var(--moss); background-image: linear-gradient(90deg, transparent, rgba(29,27,27,.22)), url("/images/nefes-studio-hero.png"); background-position: center; background-size: cover; background-repeat: no-repeat; background-blend-mode: normal, luminosity; }
+.studio-copy { display: flex; flex-direction: column; justify-content: center; padding: 70px; border: 1px solid var(--line); border-left: 0; background: var(--ivory); }
 .studio-copy h2 { font-size: clamp(43px, 5vw, 65px); }
-.studio-copy h2 em { color: var(--ivory-light); }
+.studio-copy h2 em { color: var(--ink); }
 .studio-copy p { max-width: 470px; margin: 0 0 30px; font-size: 14px; line-height: 1.75; }
 .studio-copy .inline-link { align-self: flex-start; }
 .site-footer { padding: 52px 0; color: rgba(241,237,218,.72); background: var(--ink); }
@@ -137,9 +137,9 @@ button { color: inherit; }
 .calendar-hero { padding: 74px 0 58px; color: var(--ivory); background: var(--ink); }
 .calendar-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 50px; }
 .calendar-heading h1 { margin-bottom: 0; font-size: clamp(58px, 7vw, 95px); }
-.calendar-heading h1 em { color: var(--cold-blue); }
+.calendar-heading h1 em { color: var(--ivory); }
 .calendar-note { max-width: 300px; display: flex; gap: 13px; align-items: flex-start; padding: 18px 0; border-top: 1px solid var(--line-light); color: rgba(241,237,218,.68); }
-.calendar-note svg { flex: none; color: var(--cold-blue); }
+.calendar-note svg { flex: none; color: var(--ivory); }
 .calendar-note p { margin: 0; font-size: 12px; line-height: 1.6; }
 .calendar-content { padding-top: 34px; padding-bottom: 90px; }
 .calendar-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 28px; }
@@ -166,21 +166,21 @@ button { color: inherit; }
 .day-sessions .level-tag { width: fit-content; margin-top: 8px; }
 .day-sessions .session-instructor { margin: 12px 0; }
 .empty-day { margin: 80px auto; color: var(--muted); font-family: var(--font-serif); font-style: italic; font-size: 15px; }
-.calendar-help { margin-top: 48px; padding: 38px 42px; display: flex; justify-content: space-between; align-items: center; gap: 30px; color: var(--ivory); background: var(--plum); }
+.calendar-help { margin-top: 48px; padding: 38px 42px; display: flex; justify-content: space-between; align-items: center; gap: 30px; color: var(--ivory); background: var(--ink); }
 .calendar-help h2 { margin: 10px 0 0; font-size: 38px; }
 
 .auth-page { min-height: 100vh; padding: 24px; display: grid; place-items: center; background: var(--ink); }
 .auth-brand { position: absolute; z-index: 3; top: 45px; left: 56px; color: var(--ivory); }
 .auth-shell { width: min(1180px, 100%); min-height: 720px; display: grid; grid-template-columns: 1.05fr .95fr; overflow: hidden; background: var(--ivory); }
-.auth-aside { position: relative; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding: 58px; color: var(--ivory); background: url("/images/nefes-studio-hero.png") 66% center / cover no-repeat; }
+.auth-aside { position: relative; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding: 58px; color: var(--ivory); background-color: var(--plum); background-image: url("/images/nefes-studio-hero.png"); background-position: 66% center; background-size: cover; background-repeat: no-repeat; background-blend-mode: luminosity; }
 .auth-aside::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(29,27,27,.05), rgba(29,27,27,.82)); }
 .auth-aside-copy, .auth-benefits { position: relative; z-index: 1; }
 .auth-aside h1 { margin: 22px 0 18px; font-family: var(--font-serif); font-size: 61px; font-weight: 400; letter-spacing: -.055em; line-height: .9; }
-.auth-aside h1 em { color: var(--cold-blue); font-weight: 400; }
+.auth-aside h1 em { color: var(--ivory); font-weight: 400; }
 .auth-aside-copy > p { max-width: 410px; color: rgba(241,237,218,.72); font-size: 13px; line-height: 1.7; }
 .auth-benefits { margin-top: 34px; padding-top: 24px; display: flex; flex-wrap: wrap; gap: 14px 22px; border-top: 1px solid var(--line-light); }
 .auth-benefits span { display: flex; align-items: center; gap: 7px; color: rgba(241,237,218,.75); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
-.auth-benefits svg { width: 14px; height: 14px; color: var(--cold-blue); }
+.auth-benefits svg { width: 14px; height: 14px; color: var(--ivory); }
 .auth-card { align-self: center; padding: 70px 76px; }
 .auth-card-heading h2 { margin: 10px 0 14px; font-family: var(--font-serif); font-size: 51px; font-weight: 400; letter-spacing: -.05em; line-height: .95; }
 .auth-card-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
