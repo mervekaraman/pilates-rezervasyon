@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarIcon, LeafIcon } from "@/components/icons";
+import { CalendarIcon, CheckIcon } from "@/components/icons";
 import { SessionCard } from "@/components/session-card";
 import { SiteHeader } from "@/components/site-header";
 import { sessions, weekDays } from "@/lib/schedule";
@@ -14,12 +14,12 @@ export default function CalendarPage() {
       <section className="calendar-hero">
         <div className="container calendar-heading">
           <div>
-            <span className="eyebrow"><CalendarIcon size={16} /> Haftalık program</span>
-            <h1>Kendine uygun<br /><em>dersi seç.</em></h1>
+            <span className="eyebrow">Haftalık program · 5–10 Ekim</span>
+            <h1>Akışını<br /><em>planla.</em></h1>
           </div>
           <div className="calendar-note">
-            <LeafIcon size={22} />
-            <p>Rezervasyonun eğitmen onayından sonra kesinleşir.</p>
+            <CheckIcon size={20} />
+            <p>Seçtiğin ders, eğitmen onayından sonra kesinleşir.</p>
           </div>
         </div>
       </section>
@@ -28,7 +28,7 @@ export default function CalendarPage() {
         <div className="calendar-toolbar">
           <div className="week-control">
             <button type="button" aria-label="Önceki hafta">‹</button>
-            <strong>5–10 Ekim 2026</strong>
+            <strong><CalendarIcon size={17} /> 5–10 Ekim 2026</strong>
             <button type="button" aria-label="Sonraki hafta">›</button>
           </div>
           <div className="filter-pills">
@@ -59,10 +59,10 @@ export default function CalendarPage() {
 
         <div className="calendar-help">
           <div>
-            <span className="eyebrow">İlk rezervasyonun mu?</span>
-            <h2>Önce ücretsiz hesabını oluştur.</h2>
+            <span className="eyebrow eyebrow-light">İlk rezervasyonun mu?</span>
+            <h2>Yerini ayırmaya hazırsın.</h2>
           </div>
-          <Link href="/giris" className="button button-large">Giriş yap veya üye ol</Link>
+          <Link href="/giris" className="button button-ivory button-large">Giriş yap veya üye ol</Link>
         </div>
       </section>
     </main>

@@ -1,22 +1,20 @@
 import Link from "next/link";
-import { LeafIcon } from "@/components/icons";
 
 export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="container header-inner">
         <Link href="/" className="brand" aria-label="Nefes Pilates ana sayfa">
-          <span className="brand-mark"><LeafIcon size={24} /></span>
-          <span>Nefes Pilates</span>
+          <span>nefes</span><i>.</i>
         </Link>
         <nav className="desktop-nav" aria-label="Ana menü">
-          <Link href="/takvim">Ders Takvimi</Link>
-          <a href="#nasil-calisir">Nasıl Çalışır?</a>
-          <a href="#stüdyo">Stüdyo</a>
+          <Link href="/takvim">Dersler</Link>
+          <Link href="/#nasil-calisir">Nasıl çalışır?</Link>
+          <Link href="/#stüdyo">Stüdyo</Link>
         </nav>
         <div className="header-actions">
           <Link href="/giris" className="text-link">Giriş yap</Link>
-          <Link href="/takvim" className="button button-small">Ders bul</Link>
+          <Link href="/takvim" className="button button-small">Yerini ayır</Link>
         </div>
       </div>
     </header>
