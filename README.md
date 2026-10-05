@@ -8,8 +8,8 @@ Smeda Pilates için reformer ders rezervasyonu: üyeler programdan ders seçip t
 
 - **Üyelik:** e-posta + şifre ile kayıt/giriş, şifre sıfırlama (e-postayla, 1 saat geçerli tek kullanımlık bağlantı), profil ve bildirim tercihleri.
 - **Roller:** danışan (üye) ve eğitmen. Eğitmen hesabı, kayıt formunda stüdyonun **davet kodu** girilerek açılır.
-- **Danışan:** ders programı, ders detayı, rezervasyon talebi, rezervasyonlarım, iptal (derse 12 saat kalana kadar), katıldığı dersi değerlendirme.
-- **Eğitmen:** özet paneli, yeni ders saati açma (saat başlarında, varsayılan 4 kişilik; haftalık tekrar dahil, stüdyoda saat çakışması engellenir), talepleri onaylama/reddetme, takvim, ders katılımcı listesi, ders iptali (üyelere otomatik haber verilir).
+- **Danışan:** ders programı, ders detayı, rezervasyon talebi, rezervasyonlarım, iptal veya başka saate taşıma (derse 12 saat kalana kadar), katılımı doğrulanan dersi değerlendirme ve yorumu düzenleme.
+- **Eğitmen:** özet paneli, yeni ders saati açma (saat başlarında, varsayılan 4 kişilik; haftalık tekrar dahil, stüdyoda saat çakışması engellenir), talepleri onaylama/reddetme, takvim, katıldı/katılmadı kaydı, ders iptali (üyelere otomatik haber verilir).
 - **Bildirimler:** talep alındı, onay/ret, iptal ve ders iptali için e-posta + uygulama içi bildirim.
 - **Telefon bildirimleri (Web Push, ücretsiz):** üye ya da eğitmen Profil › Ayarlar'dan (veya rezervasyon sonrası ekrandan) açar; aynı bildirimler telefona anında düşer. Android'de doğrudan, iPhone'da site ana ekrana eklenince çalışır. Yalnızca https'te (ve localhost'ta) çalışır.
 - **WhatsApp'tan haber ver (ücretsiz):** eğitmen onay/ret sonrası, talepler listesinde ve ders katılımcı listesinde tek dokunuşla WhatsApp'ı üyenin numarası ve hazır mesajla açar; gönderen eğitmenin kendi WhatsApp'ıdır, API ya da ücret yoktur.
@@ -63,8 +63,10 @@ Sunucu kapalıyken çalıştırın; bir sonraki açılışta veritabanı yeniden
    ```bash
    DATABASE_URL="postgresql://..." npm run db:migrate
    ```
-3. Vercel'de projeyi bağlayın ve ortam değişkenlerini girin: `DATABASE_URL`, `APP_URL` (sitenin adresi), `TRAINER_INVITE_CODE`, `SMTP_*`, `MAIL_FROM`, `VAPID_*` (`npx web-push generate-vapid-keys` ile üretin), isteğe bağlı `STUDIO_ADDRESS`, `STUDIO_PHONE`, `STUDIO_EMAIL`, `STUDIO_INSTAGRAM`.
-4. Canlıda demo veri oluşmaz. Eğitmenler davet koduyla kayıt olur, ilk dersleri eğitmen panelinden açar.
+3. Vercel'de projeyi bağlayın ve `.env.example` içindeki canlı ortam değişkenlerini girin. `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` için `openssl rand -base64 32`, Web Push için `npx web-push generate-vapid-keys` kullanabilirsiniz.
+4. Ortam değişkenlerini yerelde bir kez `npm run check:production` ile doğrulayın.
+5. GitHub Actions her gönderimde lint, typecheck, test ve üretim derlemesini otomatik çalıştırır.
+6. Canlıda demo veri oluşmaz. Eğitmenler davet koduyla kayıt olur, ilk dersleri eğitmen panelinden açar.
 
 Şema değiştiğinde: `npm run db:generate` ile yeni migration üretin, `npm run db:migrate` ile canlıya uygulayın.
 
@@ -76,11 +78,16 @@ Sunucu kapalıyken çalıştırın; bir sonraki açılışta veritabanı yeniden
 | `npm run build` / `npm start` | Üretim derlemesi ve sunucusu |
 | `npm run lint` / `npm run typecheck` | ESLint ve TypeScript kontrolü |
 | `npm test` | Rota, yetki ve yardımcı fonksiyon testleri |
+| `npm run check` | Tüm kalite kontrollerini sırayla çalıştırır |
+| `npm run check:production` | Canlı ortam değişkenlerini sır göstermeden doğrular |
 | `npm run db:generate` | Şemadan yeni SQL migration üretir |
 | `npm run db:migrate` | Migration'ları `DATABASE_URL` veritabanına uygular |
 | `npm run db:reset` | Yerel veritabanını siler |
+| `npm run db:cleanup` | Süresi dolan güvenlik kayıtlarını temizler (günlük zamanlanabilir) |
+| `npm run mail:retry` | Başarısız, hassas olmayan e-postaları yeniden dener |
 
 ## Sonraki adımlar
 
 - **Diğer ders türleri:** `lesson_type` enum'una değer eklemek yeterli (`ALTER TYPE ... ADD VALUE`).
-- **Gizlilik metni:** `/gizlilik` sayfası uygulamanın gerçek veri kullanımını özetler; yayına almadan önce resmî KVKK aydınlatma metniyle güncellenmelidir.
+- **Canlı operasyon:** `db:cleanup` komutunu günlük, `mail:retry` komutunu 5–15 dakikada bir çalıştırın. Şifre sıfırlama e-postaları güvenlik nedeniyle tekrar kuyruğuna alınmaz; kullanıcı yeni bağlantı ister.
+- **Gizlilik metni:** `/gizlilik` gerçek veri kullanımını ve KVKK başlıklarını kapsar; yayına almadan önce işletmenin hukuk danışmanına onaylatılmalıdır.

@@ -8,8 +8,8 @@
 - Pazartesi–cumartesi arasındaki dersleri görür.
 - Uygun derse rezervasyon talebi gönderir.
 - Talebinin durumunu takip eder.
-- İptal süresi dolmadıysa rezervasyonunu iptal eder.
-- Katıldığı ve tamamlanmış bir derse bir kez puan ve yorum bırakır.
+- İptal süresi dolmadıysa rezervasyonunu iptal eder veya başka bir saate taşır.
+- Katıldığı ve tamamlanmış bir derse puan ve yorum bırakır; yorumunu sonradan düzenleyebilir.
 
 ### Eğitmen
 
@@ -37,10 +37,9 @@
 - `pending`: Eğitmen kararı bekleniyor.
 - `approved`: Eğitmen onayladı.
 - `rejected`: Eğitmen reddetti.
-- `cancelled_by_member`: Üye iptal etti.
-- `cancelled_by_instructor`: Eğitmen iptal etti.
-- `completed`: Ders tamamlandı ve katılım doğrulandı.
-- `no_show`: Üye derse katılmadı.
+- `cancelled`: Üye iptal etti veya eğitmen dersi iptal etti.
+
+Katılım rezervasyon durumundan ayrı tutulur: `attended` (katıldı), `no_show` (katılmadı) veya henüz işaretlenmedi.
 
 ## İş kuralları
 
@@ -51,8 +50,8 @@
 - Bir üye saatleri çakışan iki derse rezervasyon yapamaz.
 - Onay sırasında kontenjan sunucu tarafında tekrar kontrol edilir; böylece son yer iki kişiye verilmez.
 - Geçmişteki bir derse rezervasyon yapılamaz.
-- İptal sınırı yapılandırılabilir olmalıdır. Başlangıç varsayımı: ders saatinden 2 saat öncesi.
-- Puanlama yalnızca `completed` durumundaki rezervasyon için yapılabilir.
+- İptal/değişiklik sınırı ders saatinden 12 saat öncesidir.
+- Puanlama yalnızca eğitmenin `attended` olarak işaretlediği rezervasyon için yapılabilir.
 - Her tamamlanan rezervasyon için yalnızca bir değerlendirme bırakılabilir; değerlendirme sonradan düzenlenebilir.
 - Puan 1–5 arasında olmalıdır.
 
@@ -79,7 +78,7 @@
 
 - Online ödeme ve paket satışı
 - Bekleme listesi
-- Push/SMS/WhatsApp bildirimleri
+- SMS entegrasyonu (Web Push ve hazır WhatsApp bağlantıları mevcut)
 - Tekrarlayan abonelikler
 - Birden fazla şube
 - Gelişmiş raporlama
@@ -88,9 +87,7 @@ Bu özellikler veri modeli genişlemeye uygun kurulduktan sonra eklenebilir.
 
 ## Açık kararlar
 
-- İptal için son süre kaç saat önce olacak?
 - Bir üyeye aynı anda kaç aktif rezervasyon hakkı verilecek?
 - Eğitmen talebi ne kadar süre içinde yanıtlamalı?
 - Uygulama tek eğitmenli mi, çok eğitmenli mi olacak?
 - Üyelik davetle mi, herkese açık kayıtla mı başlayacak?
-

@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Content-Security-Policy", value: "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://fcm.googleapis.com https://updates.push.services.mozilla.com https://*.push.apple.com" },
+  ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }] : []),
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Yerel ağdan (telefon / başka bilgisayar) geliştirme sunucusuna erişim.
@@ -9,8 +18,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/(.*)", headers: [
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ...securityHeaders,
       ] },
       // The service worker must never be served from cache, or phones keep an outdated copy.
       { source: "/sw.js", headers: [
