@@ -11,8 +11,8 @@ export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 async function createDb(): Promise<Db> {
   const url = process.env.DATABASE_URL;
   if (url) {
-    const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
-    return drizzle(new Pool({ connectionString: url, max: 5 }), { schema }) as unknown as Db;
+    const [{ Pool }, { drizzle }, { poolConfig }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres"), import("./pool-config")]);
+    return drizzle(new Pool(poolConfig(url)), { schema }) as unknown as Db;
   }
 
   const [{ PGlite }, { drizzle }, { migrate }, { seedDemoData }] = await Promise.all([

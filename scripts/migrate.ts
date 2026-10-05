@@ -3,13 +3,14 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
+import { poolConfig } from "../src/db/pool-config";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL tanımlı değil. Yerel veritabanı ilk açılışta kendini otomatik kurar.");
   process.exit(1);
 }
-const pool = new Pool({ connectionString: url, max: 1 });
+const pool = new Pool(poolConfig(url, 1));
 migrate(drizzle(pool), { migrationsFolder: "drizzle" })
   .then(() => console.log("Migration tamamlandı."))
   .catch((error) => { console.error(error); process.exitCode = 1; })
