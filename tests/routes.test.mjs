@@ -1,60 +1,67 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 
+const app = new URL("../src/app/", import.meta.url).pathname;
+
 const routes = [
-  ["splash", "splash"],
-  ["onboarding", "onboarding"],
-  ["uye-ol", "signup"],
-  ["giris", "login"],
-  ["sifre-sifirlama", "reset"],
-  ["konum-izni", "location"],
-  ["kesfet", "discover"],
-  ["harita", "map"],
-  ["arama", "search"],
-  ["studyo/move-studio", "studio"],
-  ["egitmen/duygu-kaya", "instructor"],
-  ["rezervasyon/ders-sec", "class-select"],
-  ["rezervasyon/ozet", "booking-summary"],
-  ["rezervasyon/basarili", "success"],
-  ["rezervasyonlar", "bookings"],
-  ["rezervasyonlar/move-studio-4-ekim", "booking-detail"],
-  ["favoriler", "favorites"],
-  ["yorumlar", "reviews"],
-  ["yorum-yaz", "write-review"],
-  ["profil", "profile"],
-  ["profil/ayarlar", "settings"],
-  ["bildirimler", "notifications"],
-  ["egitmen-paneli", "trainer-dashboard"],
-  ["egitmen-paneli/yeni-ders", "new-class"],
-  ["egitmen-paneli/talepler", "requests"],
-  ["egitmen-paneli/talepler/[id]", "request-detail"],
-  ["egitmen-paneli/takvim", "trainer-calendar"],
+  "", "splash", "onboarding", "giris", "uye-ol", "sifre-sifirlama", "sifre-sifirlama/yeni",
+  "dersler", "dersler/[id]", "hakkimizda", "egitmen/[id]", "yorumlar", "yardim", "gizlilik",
+  "rezervasyon/basarili", "rezervasyonlar", "rezervasyonlar/[id]", "yorum-yaz", "profil", "profil/ayarlar", "bildirimler",
+  "egitmen-paneli", "egitmen-paneli/yeni-ders", "egitmen-paneli/talepler", "egitmen-paneli/talepler/[id]",
+  "egitmen-paneli/takvim", "egitmen-paneli/dersler/[id]", "gelistirici/e-postalar",
 ];
 
-test("27 Flowly ekranının gerçek route dosyaları bulunur", () => {
-  assert.equal(routes.length, 27);
-  for (const [route, screen] of routes) {
-    const file = new URL(`../src/app/${route}/page.tsx`, import.meta.url);
-    assert.equal(existsSync(file), true, `${route} route'u eksik`);
-    assert.match(readFileSync(file, "utf8"), new RegExp(`screen=["']${screen}["']`));
+test("tek stüdyo (Smeda Pilates) sayfalarının route dosyaları bulunur", () => {
+  for (const route of routes) assert.equal(existsSync(join(app, route, "page.tsx")), true, `/${route} route'u eksik`);
+});
+
+test("çok stüdyolu eski ekranlar kaldırıldı ve yeni sayfalara yönlendiriliyor", () => {
+  const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+  for (const route of ["kesfet", "harita", "arama", "favoriler", "konum-izni", "studyo"]) {
+    assert.equal(existsSync(join(app, route)), false, `/${route} hâlâ duruyor`);
+    assert.match(config, new RegExp(`source: "/${route}`), `/${route} için yönlendirme yok`);
   }
 });
 
-test("ödeme route'u akışta bulunmaz", () => {
-  const paymentRoute = new URL("../src/app/odeme/page.tsx", import.meta.url);
-  assert.equal(existsSync(paymentRoute), false);
-  const summary = readFileSync(new URL("../src/components/flowly/screens.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(summary.match(/function BookingSummaryScreen\(\).*?function SummaryRow/s)?.[0] ?? "", /\/odeme/);
-  assert.doesNotMatch(summary, /PaymentScreen|Ödeme bilgileri|Kart numarası/);
+test("korumalı sayfalar veri katmanında oturum ve rol kontrolü yapar", () => {
+  const guarded = { "rezervasyonlar": "member", "profil": undefined, "bildirimler": undefined, "egitmen-paneli": "trainer", "egitmen-paneli/talepler": "trainer", "egitmen-paneli/yeni-ders": "trainer" };
+  for (const [route, role] of Object.entries(guarded)) {
+    const page = readFileSync(join(app, route, "page.tsx"), "utf8");
+    assert.match(page, /requireUser\(/, `/${route} requireUser çağırmıyor`);
+    if (role) assert.match(page, new RegExp(`role: "${role}"`), `/${route} ${role} rolünü istemiyor`);
+  }
+  for (const file of ["auth.ts", "bookings.ts", "lessons.ts", "account.ts", "push.ts"]) {
+    const actions = readFileSync(join(app, "actions", file), "utf8");
+    assert.match(actions, /^"use server";/);
+  }
 });
 
-test("masaüstü uyarlaması mobil kabuğu ve v4 tokenlarını korur", () => {
+test("ödeme ekranı ve ders ücreti yok; üyeler ödemeyi başta toplu yapar", () => {
+  assert.equal(existsSync(join(app, "odeme")), false);
+  const walk = (dir) => readdirSync(dir).flatMap((name) => statSync(join(dir, name)).isDirectory() ? walk(join(dir, name)) : [join(dir, name)]);
+  for (const file of walk(new URL("../src/", import.meta.url).pathname).filter((path) => /\.tsx?$/.test(path))) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /PaymentScreen|Kart numarası|href="\/odeme|priceTl|formatPrice|price_tl/, file);
+  }
+});
+
+test("tasarım tokenları ve masaüstü üst menüsü korunur", () => {
   const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
   assert.match(css, /--ivory:#f1edda/);
   assert.match(css, /--cta:#28171a/);
   assert.match(css, /width:min\(100%,430px\)/);
-  assert.match(css, /@media\(min-width:1024px\)/);
-  assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
-  assert.match(css, /position:fixed;inset:0 auto 0 0;width:112px/);
+  assert.match(css, /@media\(min-width:1024px\)\{\.flowly-app>\.site-header\{display:block\}\}/);
+});
+
+test("telefon bildirimleri: service worker, manifest ve yalnızca bilinen push servisleri", () => {
+  const root = new URL("../", import.meta.url);
+  assert.equal(existsSync(new URL("public/sw.js", root)), true);
+  assert.equal(existsSync(new URL("src/app/manifest.ts", root)), true);
+  for (const icon of ["icon-192.png", "icon-512.png", "badge-96.png"]) assert.equal(existsSync(new URL(`public/icons/${icon}`, root)), true, icon);
+  const actions = readFileSync(new URL("src/app/actions/push.ts", root), "utf8");
+  assert.match(actions, /requireUser\(\)/, "abonelik giriş yapmış kullanıcıya bağlanmalı");
+  assert.match(actions, /fcm\\.googleapis\\.com/, "uç noktalar push servisleriyle sınırlı olmalı (SSRF)");
+  const config = readFileSync(new URL("next.config.ts", root), "utf8");
+  assert.match(config, /source: "\/sw\.js"/, "service worker önbelleğe alınmamalı");
 });

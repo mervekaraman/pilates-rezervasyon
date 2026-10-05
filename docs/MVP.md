@@ -45,6 +45,8 @@
 ## İş kuralları
 
 - Dersler yalnızca pazartesi–cumartesi planlanabilir.
+- Dersler saat başında başlar (07:00–21:00); varsayılan kontenjan 4 kişidir.
+- Ders başına ücret yoktur; üyeler ödemeyi üyelik başında toplu yapar. Uygulama ödeme almaz.
 - Bir üye aynı ders için yalnızca bir aktif rezervasyon oluşturabilir.
 - Bir üye saatleri çakışan iki derse rezervasyon yapamaz.
 - Onay sırasında kontenjan sunucu tarafında tekrar kontrol edilir; böylece son yer iki kişiye verilmez.
@@ -86,7 +88,6 @@ Bu özellikler veri modeli genişlemeye uygun kurulduktan sonra eklenebilir.
 
 ## Açık kararlar
 
-- Ders başına kontenjan kaç kişi olacak?
 - İptal için son süre kaç saat önce olacak?
 - Bir üyeye aynı anda kaç aktif rezervasyon hakkı verilecek?
 - Eğitmen talebi ne kadar süre içinde yanıtlamalı?

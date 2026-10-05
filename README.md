@@ -1,43 +1,86 @@
-# Pilates Rezervasyon Uygulaması
+# Smeda Pilates — Rezervasyon Uygulaması
 
-Pazartesi–cumartesi günleri için ders rezervasyonu, eğitmen onayı, iptal ve ders sonrası değerlendirme süreçlerini yöneten mobil uyumlu web uygulaması.
+Smeda Pilates için reformer ders rezervasyonu: üyeler programdan ders seçip talep gönderir, eğitmen onaylar ya da reddeder, her adımda e-posta ve uygulama içi bildirim gider. Pazartesi–cumartesi çalışır; şimdilik yalnızca reformer dersleri açılır.
 
-## İlk sürümün hedefi
+İş kuralları için [docs/MVP.md](docs/MVP.md) dosyasına bakın.
 
-- Üye ve eğitmen hesapları
-- Haftalık ders programını görüntüleme
-- Kontenjan dahilinde rezervasyon talebi oluşturma
-- Eğitmenin talebi onaylaması veya reddetmesi
-- Üyenin kurallara uygun biçimde rezervasyonu iptal etmesi
-- Tamamlanan dersi puanlama ve yorumlama
-- Üye ve eğitmen için ayrı kontrol panelleri
+## Neler var?
 
-Detaylı kapsam ve iş kuralları için [docs/MVP.md](docs/MVP.md) dosyasına bakın.
+- **Üyelik:** e-posta + şifre ile kayıt/giriş, şifre sıfırlama (e-postayla, 1 saat geçerli tek kullanımlık bağlantı), profil ve bildirim tercihleri.
+- **Roller:** danışan (üye) ve eğitmen. Eğitmen hesabı, kayıt formunda stüdyonun **davet kodu** girilerek açılır.
+- **Danışan:** ders programı, ders detayı, rezervasyon talebi, rezervasyonlarım, iptal (derse 12 saat kalana kadar), katıldığı dersi değerlendirme.
+- **Eğitmen:** özet paneli, yeni ders saati açma (saat başlarında, varsayılan 4 kişilik; haftalık tekrar dahil, stüdyoda saat çakışması engellenir), talepleri onaylama/reddetme, takvim, ders katılımcı listesi, ders iptali (üyelere otomatik haber verilir).
+- **Bildirimler:** talep alındı, onay/ret, iptal ve ders iptali için e-posta + uygulama içi bildirim.
+- **Telefon bildirimleri (Web Push, ücretsiz):** üye ya da eğitmen Profil › Ayarlar'dan (veya rezervasyon sonrası ekrandan) açar; aynı bildirimler telefona anında düşer. Android'de doğrudan, iPhone'da site ana ekrana eklenince çalışır. Yalnızca https'te (ve localhost'ta) çalışır.
+- **WhatsApp'tan haber ver (ücretsiz):** eğitmen onay/ret sonrası, talepler listesinde ve ders katılımcı listesinde tek dokunuşla WhatsApp'ı üyenin numarası ve hazır mesajla açar; gönderen eğitmenin kendi WhatsApp'ıdır, API ya da ücret yoktur.
+- **Ödeme yok:** üyeler ödemeyi üyelik başında toplu yapar; uygulamada ders başına ücret tutulmaz ve gösterilmez.
+- **Sayfalar:** Hakkımızda, Yardım (SSS), Gizlilik ve kullanım koşulları, eğitmen profilleri, yorumlar.
 
-## Önerilen teknoloji
+## Teknoloji
 
-- Next.js + TypeScript
-- Mobil uyumlu özel CSS tasarım sistemi
-- Supabase (PostgreSQL, kimlik doğrulama ve yetkilendirme)
-- Vercel (yayınlama)
-- Vitest/Playwright (testler)
+- Next.js 16 (App Router, Server Actions) + TypeScript
+- PostgreSQL + Drizzle ORM — yerelde gömülü PostgreSQL (PGlite), canlıda herhangi bir Postgres (Supabase önerilir)
+- Oturumlar veritabanında; çerezde rastgele token, veritabanında yalnızca hash'i tutulur. Şifreler scrypt ile hash'lenir.
+- E-posta: Nodemailer (SMTP)
 
 ## Yerel çalıştırma
 
 ```bash
 npm install
+cp .env.example .env.local   # TRAINER_INVITE_CODE'u doldur
 npm run dev
 ```
 
-Ardından `http://localhost:3000` adresini açın.
+Uygulama `http://localhost:3040` adresinde açılır. Hiçbir hesap ya da kurulum gerekmez: veritabanı ilk istekte `./data` klasöründe kendini kurar ve demo veriyle dolar.
 
-## Yol haritası
+### Demo hesaplar
 
-1. MVP kapsamı ve kuralları
-2. Teknik iskelet ve veritabanı modeli
-3. Üyelik ve roller
-4. Ders programı ve rezervasyon
-5. Eğitmen onay ekranı
-6. İptal akışı
-7. Puanlama ve yorumlar
-8. Test, güvenlik ve yayınlama
+Demo veri yalnızca yerel veritabanında oluşur. Hepsinin şifresi `src/db/seed.ts` içindeki `DEMO_PASSWORD` değeridir.
+
+| Rol | E-posta |
+| --- | --- |
+| Eğitmen | `duygu@demo.smeda.test` |
+| Eğitmen | `ece@demo.smeda.test` |
+| Danışan | `elif@demo.smeda.test` (onaylı, bekleyen ve geçmiş rezervasyonları var) |
+| Danışan | `selin@`, `zeynep@`, `ceren@`, `derya@demo.smeda.test` |
+
+### E-postalar
+
+`SMTP_HOST` boşsa e-postalar gönderilmez; geliştirme sırasında **`/gelistirici/e-postalar`** sayfasında önizlenir (şifre sıfırlama bağlantısı da buradan açılabilir). Gerçek gönderim için `.env.local` dosyasına SMTP bilgilerini ekleyin — örneğin Gmail için `smtp.gmail.com`, port `465` ve bir [uygulama şifresi](https://support.google.com/accounts/answer/185833).
+
+### Yerel veritabanını sıfırlama
+
+```bash
+npm run db:reset
+```
+
+Sunucu kapalıyken çalıştırın; bir sonraki açılışta veritabanı yeniden kurulup demo veriyle dolar.
+
+## Canlıya alma (Vercel + Supabase)
+
+1. Supabase'te bir proje açın. **Project Settings › Database › Connection string** bölümünden *Transaction pooler* adresini kopyalayın.
+2. Tabloları oluşturun:
+   ```bash
+   DATABASE_URL="postgresql://..." npm run db:migrate
+   ```
+3. Vercel'de projeyi bağlayın ve ortam değişkenlerini girin: `DATABASE_URL`, `APP_URL` (sitenin adresi), `TRAINER_INVITE_CODE`, `SMTP_*`, `MAIL_FROM`, `VAPID_*` (`npx web-push generate-vapid-keys` ile üretin), isteğe bağlı `STUDIO_ADDRESS`, `STUDIO_PHONE`, `STUDIO_EMAIL`, `STUDIO_INSTAGRAM`.
+4. Canlıda demo veri oluşmaz. Eğitmenler davet koduyla kayıt olur, ilk dersleri eğitmen panelinden açar.
+
+Şema değiştiğinde: `npm run db:generate` ile yeni migration üretin, `npm run db:migrate` ile canlıya uygulayın.
+
+## Komutlar
+
+| Komut | Ne yapar |
+| --- | --- |
+| `npm run dev` | Geliştirme sunucusu (`:3040`) |
+| `npm run build` / `npm start` | Üretim derlemesi ve sunucusu |
+| `npm run lint` / `npm run typecheck` | ESLint ve TypeScript kontrolü |
+| `npm test` | Rota, yetki ve yardımcı fonksiyon testleri |
+| `npm run db:generate` | Şemadan yeni SQL migration üretir |
+| `npm run db:migrate` | Migration'ları `DATABASE_URL` veritabanına uygular |
+| `npm run db:reset` | Yerel veritabanını siler |
+
+## Sonraki adımlar
+
+- **Diğer ders türleri:** `lesson_type` enum'una değer eklemek yeterli (`ALTER TYPE ... ADD VALUE`).
+- **Gizlilik metni:** `/gizlilik` sayfası uygulamanın gerçek veri kullanımını özetler; yayına almadan önce resmî KVKK aydınlatma metniyle güncellenmelidir.
