@@ -26,3 +26,6 @@ test-results/
 
 # Vercel
 .vercel/
+
+# Local embedded database (PGlite)
+/data/
