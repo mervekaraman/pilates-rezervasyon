@@ -1,10 +1,15 @@
-export type FlowlyIconName = "arrow-left" | "arrow-right" | "home" | "calendar" | "heart" | "user" | "search" | "filter" | "pin" | "clock" | "star" | "users" | "level" | "bell" | "settings" | "mail" | "phone" | "lock" | "eye" | "card" | "document" | "check" | "plus" | "share" | "help" | "trash" | "studio" | "repeat" | "hourglass" | "tag" | "mat";
+export type FlowlyIconName = "arrow-left" | "arrow-right" | "chevron-down" | "chevron-left" | "chevron-right" | "bookmark" | "x" | "home" | "calendar" | "heart" | "user" | "search" | "filter" | "pin" | "clock" | "star" | "users" | "level" | "bell" | "settings" | "mail" | "phone" | "lock" | "eye" | "card" | "document" | "check" | "plus" | "share" | "help" | "trash" | "studio" | "repeat" | "hourglass" | "tag" | "mat" | "chat";
 
 export function FlowlyIcon({ name, size = 24, className }: { name: FlowlyIconName; size?: number; className?: string }) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const shapes: Record<FlowlyIconName, React.ReactNode> = {
     "arrow-left": <><path d="M19 12H5" {...common}/><path d="m11 18-6-6 6-6" {...common}/></>,
     "arrow-right": <><path d="M5 12h14" {...common}/><path d="m13 6 6 6-6 6" {...common}/></>,
+    "chevron-down": <path d="m6 9 6 6 6-6" {...common}/>,
+    "chevron-left": <path d="m15 6-6 6 6 6" {...common}/>,
+    "chevron-right": <path d="m9 6 6 6-6 6" {...common}/>,
+    bookmark: <path d="M6 3h12v18l-6-4.5L6 21Z" {...common}/>,
+    x: <path d="M6 6l12 12M18 6 6 18" {...common}/>,
     home: <><path d="m3 11 9-8 9 8v10h-6v-6H9v6H3Z" {...common}/></>,
     calendar: <><rect x="3" y="5" width="18" height="16" rx="1" {...common}/><path d="M7 3v4M17 3v4M3 10h18" {...common}/></>,
     heart: <path d="M20.8 4.8a5.5 5.5 0 0 0-7.8 0L12 5.9l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.4a5.5 5.5 0 0 0 0-7.8Z" {...common}/>,
@@ -19,6 +24,7 @@ export function FlowlyIcon({ name, size = 24, className }: { name: FlowlyIconNam
     bell: <><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4Z" {...common}/><path d="M10 20h4" {...common}/></>,
     settings: <><circle cx="12" cy="12" r="3" {...common}/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" {...common}/></>,
     mail: <><rect x="3" y="5" width="18" height="14" rx="1" {...common}/><path d="m4 7 8 6 8-6" {...common}/></>,
+    chat: <path d="M20 11.5a8 8 0 0 1-11.7 7.1L4 20l1.3-4.1A8 8 0 1 1 20 11.5Z" {...common}/>,
     phone: <path d="M5 3h4l2 5-2.5 2a15 15 0 0 0 5.5 5.5L16 13l5 2v4c0 1.1-.9 2-2 2C10.2 21 3 13.8 3 5c0-1.1.9-2 2-2Z" {...common}/>,
     lock: <><rect x="5" y="10" width="14" height="11" rx="1" {...common}/><path d="M8 10V7a4 4 0 0 1 8 0v3" {...common}/></>,
     eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" {...common}/><circle cx="12" cy="12" r="2.5" {...common}/></>,

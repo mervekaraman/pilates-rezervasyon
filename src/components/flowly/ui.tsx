@@ -1,60 +1,80 @@
-/* eslint-disable @next/next/no-img-element -- Reference PNG crops require exact native image sizing. */
-"use client";
-
+/* eslint-disable @next/next/no-img-element -- Avatars and studio photos are small local files with fixed crops. */
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { initials } from "@/lib/format";
 import { FlowlyIcon, type FlowlyIconName } from "./icons";
-import { studios } from "@/lib/flowly-data";
+
+// Presentational building blocks. No hooks here, so they render in Server and Client Components alike.
 
 export function Brand({ light = false }: { light?: boolean }) { return <span className={`flowly-brand${light ? " is-light" : ""}`}>flowly</span>; }
 
-export function TopBar({ title, back = true, action }: { title?: string; back?: boolean; action?: React.ReactNode }) {
-  const router = useRouter();
-  return <header className="flowly-topbar">{back ? <button className="icon-button" onClick={() => router.back()} aria-label="Geri"><FlowlyIcon name="arrow-left" size={30}/></button> : <span/>}<strong>{title}</strong><div>{action}</div></header>;
+export function ButtonLink({ href, children, variant = "primary", icon = true }: { href: string; children: React.ReactNode; variant?: "primary" | "outline"; icon?: boolean }) {
+  return <Link href={href} className={`flowly-button${variant === "outline" ? " is-outline" : ""}`}>{children}{icon && <FlowlyIcon name="arrow-right" size={20}/>}</Link>;
 }
 
-export function PrimaryButton({ children, href, disabled, loading, onClick, outline = false }: { children: React.ReactNode; href?: string; disabled?: boolean; loading?: boolean; onClick?: () => void; outline?: boolean }) {
-  const cls = `flowly-button${outline ? " is-outline" : ""}`;
-  if (href && !disabled) return <Link href={href} className={cls}>{children}<FlowlyIcon name="arrow-right" size={20}/></Link>;
-  return <button type="submit" className={cls} disabled={disabled || loading} onClick={onClick}>{loading ? "Bekle..." : children}{!loading && <FlowlyIcon name="arrow-right" size={20}/>}</button>;
+/** Opens WhatsApp with the member's number and a prepared message (free; the trainer presses send). */
+export function WhatsAppLink({ href, children = "WhatsApp'tan haber ver", variant = "inline" }: { href: string | null; children?: React.ReactNode; variant?: "inline" | "button" }) {
+  if (!href) return null;
+  return <a href={href} target="_blank" rel="noopener noreferrer" className={variant === "button" ? "flowly-button is-outline whatsapp-button" : "whatsapp-link"}><FlowlyIcon name="chat" size={variant === "button" ? 20 : 16}/>{children}</a>;
 }
 
-export function Field({ label, icon, type = "text", value, onChange, placeholder, error, name }: { label: string; icon?: FlowlyIconName; type?: string; value: string; onChange: (value: string) => void; placeholder?: string; error?: string; name?: string }) {
-  return <label className={`flowly-field${error ? " has-error" : ""}`}><span>{label}</span><div>{icon && <FlowlyIcon name={icon} size={21}/>}<input name={name} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder}/></div>{error && <small>{error}</small>}</label>;
+export function TopBar({ title, back, action }: { title?: string; back?: string; action?: React.ReactNode }) {
+  return <header className="flowly-topbar">{back ? <Link href={back} className="icon-button" aria-label="Geri"><FlowlyIcon name="arrow-left" size={28}/></Link> : <span/>}<strong>{title}</strong><div>{action}</div></header>;
 }
 
-const memberItems = [
-  { href: "/kesfet", label: "Keşfet", icon: "home" as const },
-  { href: "/rezervasyonlar", label: "Rezervasyonlar", icon: "calendar" as const },
-  { href: "/favoriler", label: "Favoriler", icon: "heart" as const },
-  { href: "/profil", label: "Profil", icon: "user" as const },
-];
-const trainerItems = [
-  { href: "/egitmen-paneli", label: "Özet", icon: "home" as const },
-  { href: "/egitmen-paneli/takvim", label: "Takvim", icon: "calendar" as const },
-  { href: "/egitmen-paneli/talepler", label: "Talepler", icon: "users" as const },
-  { href: "/profil", label: "Profil", icon: "user" as const },
-];
-
-export function BottomNav({ trainer = false }: { trainer?: boolean }) {
-  const pathname = usePathname();
-  const items = trainer ? trainerItems : memberItems;
-  return <nav className="flowly-bottom-nav" aria-label="Alt navigasyon">{items.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href ? "is-active" : ""}><FlowlyIcon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
+export function StatusBadge({ children, tone = "moss", dot = false }: { children: React.ReactNode; tone?: "moss" | "plum" | "blue" | "neutral"; dot?: boolean }) {
+  return <span className={`status-badge ${tone}`}>{dot && <i className="status-dot"/>}{children}</span>;
 }
 
-export function StatusBadge({ children, tone = "moss" }: { children: React.ReactNode; tone?: "moss" | "plum" | "blue" | "neutral" }) { return <span className={`status-badge ${tone}`}>{children}</span>; }
+export const bookingTone = { pending: "blue", approved: "moss", rejected: "plum", cancelled: "neutral" } as const;
 
-export function DatePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const dates = [{ d: "Pzt", n: "28" }, { d: "Sal", n: "29" }, { d: "Çar", n: "30" }, { d: "Per", n: "1" }, { d: "Cum", n: "2" }, { d: "Cmt", n: "4" }, { d: "Paz", n: "5" }];
-  return <div className="date-picker">{dates.map((date) => <button key={date.n} className={value === date.n ? "is-selected" : ""} onClick={() => onChange(date.n)}><span>{date.d}</span><strong>{date.n}</strong></button>)}</div>;
+export function Rating({ value, count }: { value: number | null; count?: number }) {
+  if (value === null) return <span className="rating is-empty">Henüz puan yok</span>;
+  return <span className="rating"><FlowlyIcon name="star" size={14}/>{value.toFixed(1)}{count !== undefined && <span>({count})</span>}</span>;
 }
 
-export function StudioRow({ studio = studios[0], favorite, onFavorite }: { studio?: typeof studios[number]; favorite?: boolean; onFavorite?: () => void }) {
-  return <article className="studio-row"><Link href="/studyo/move-studio" className="studio-row-main"><img src={studio.image} alt=""/><div><div className="row-title"><strong>{studio.name}</strong><span>{studio.distance}</span></div><p>{studio.type}</p><p>{studio.time} · {studio.duration}</p><p className="rating">★ <span>{studio.rating} ({studio.reviews})</span></p></div></Link>{onFavorite && <button className={`favorite-button${favorite ? " is-active" : ""}`} onClick={onFavorite} aria-label="Favoriye ekle"><FlowlyIcon name="heart"/></button>}</article>;
+export function Stars({ value, size = 14 }: { value: number; size?: number }) {
+  return <span className="stars" role="img" aria-label={`5 üzerinden ${value}`}>{[1, 2, 3, 4, 5].map((star) => <FlowlyIcon key={star} name="star" size={size} className={star <= value ? "is-on" : ""}/>)}</span>;
 }
 
-export function InstructorRow({ compact = false }: { compact?: boolean }) {
-  return <Link href="/egitmen/duygu-kaya" className={`instructor-row${compact ? " is-compact" : ""}`}><img src="/images/flowly/instructor.webp" alt="Duygu Kaya"/><div><strong>Duygu Kaya</strong><span>Pilates Eğitmeni</span></div><FlowlyIcon name="arrow-right"/></Link>;
+export function SeeAll({ href, children = "Tümünü gör" }: { href: string; children?: React.ReactNode }) {
+  return <Link href={href} className="see-all">{children}<FlowlyIcon name="arrow-right" size={15}/></Link>;
 }
 
-export function SettingRow({ icon, label, value, href = "#" }: { icon: FlowlyIconName; label: string; value?: string; href?: string }) { return <Link href={href} className="setting-row"><FlowlyIcon name={icon}/><strong>{label}</strong>{value && <span>{value}</span>}<FlowlyIcon name="arrow-right" size={19}/></Link>; }
+export function Avatar({ name, src, size = 48 }: { name: string; src?: string | null; size?: number }) {
+  return src
+    ? <img className="avatar" src={src} alt="" width={size} height={size} style={{ width: size, height: size }}/>
+    : <span className="avatar is-initials" aria-hidden="true" style={{ width: size, height: size, fontSize: Math.round(size * 0.36) }}>{initials(name)}</span>;
+}
+
+export function PageHeading({ eyebrow, title, sub, action }: { eyebrow?: string; title: React.ReactNode; sub?: React.ReactNode; action?: React.ReactNode }) {
+  return <div className="page-heading"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1>{sub && <p className="page-sub">{sub}</p>}</div>{action}</div>;
+}
+
+export function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
+  return <div className="section-title-row"><h2>{title}</h2>{action}</div>;
+}
+
+export function InfoRow({ icon, label, value, href }: { icon: FlowlyIconName; label?: string; value: React.ReactNode; href?: string }) {
+  const content = <>{label && <span>{label}</span>}<FlowlyIcon name={icon}/><p>{value}</p>{href && <FlowlyIcon name="chevron-right" size={18}/>}</>;
+  return href ? <Link href={href} className="summary-row is-link">{content}</Link> : <div className="summary-row">{content}</div>;
+}
+
+export function EmptyState({ icon, title, text, action }: { icon: FlowlyIconName; title: string; text?: string; action?: React.ReactNode }) {
+  return <div className="empty-state"><FlowlyIcon name={icon} size={36}/><h2>{title}</h2>{text && <p>{text}</p>}{action}</div>;
+}
+
+export function Notice({ tone = "neutral", children }: { tone?: "neutral" | "success" | "error"; children: React.ReactNode }) {
+  return <p className={`notice is-${tone}`} role={tone === "error" ? "alert" : "status"}>{children}</p>;
+}
+
+export function TrainerChip({ id, name, avatarUrl, subtitle = "Reformer eğitmeni" }: { id: string; name: string; avatarUrl: string | null; subtitle?: string }) {
+  return <Link href={`/egitmen/${id}`} className="instructor-row"><Avatar name={name} src={avatarUrl} size={52}/><div><strong>{name}</strong><span>{subtitle}</span></div><FlowlyIcon name="chevron-right" size={18}/></Link>;
+}
+
+/** The home page's floating flowers; `focus` pulls one of them sharp (used on login and signup). */
+export function FloatingFlowers({ focus }: { focus?: "left" | "right" }) {
+  return <>
+    <div className={`home-flower is-left${focus === "left" ? " is-sharp" : ""}`} aria-hidden="true"><span/></div>
+    <div className={`home-flower is-right${focus === "right" ? " is-sharp" : ""}`} aria-hidden="true"><span/></div>
+  </>;
+}

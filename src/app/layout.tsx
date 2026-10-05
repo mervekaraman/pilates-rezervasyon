@@ -1,6 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, Inter_Tight } from "next/font/google";
-import { FlowlyProvider } from "@/components/flowly/app-state";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -17,16 +16,21 @@ const interTight = Inter_Tight({
 
 export const metadata: Metadata = {
   title: {
-    default: "Flowly | Pilates. Nearby. On your terms.",
-    template: "%s | Flowly",
+    default: "Smeda Pilates | Flowly",
+    template: "%s | Smeda Pilates",
   },
-  description: "Yakınındaki pilates stüdyolarını keşfet, dersini seç ve yerini ayır.",
+  description: "Smeda Pilates reformer ders programı: dersini seç, yerini ayır, rezervasyonunu yönet.",
+  applicationName: "Smeda Pilates",
+  // iPhone: once added to the home screen the site opens like an app and can receive notifications.
+  appleWebApp: { capable: true, title: "Smeda", statusBarStyle: "default" },
 };
+
+export const viewport: Viewport = { themeColor: "#f1edda" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="tr" className={`${instrumentSans.variable} ${interTight.variable}`} data-scroll-behavior="smooth">
-      <body><FlowlyProvider>{children}</FlowlyProvider></body>
+      <body>{children}</body>
     </html>
   );
 }
