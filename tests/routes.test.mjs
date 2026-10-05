@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-const app = new URL("../src/app/", import.meta.url).pathname;
+const root = fileURLToPath(new URL("../", import.meta.url));
+const app = join(root, "src/app");
 
 const routes = [
   "", "splash", "onboarding", "giris", "uye-ol", "sifre-sifirlama", "sifre-sifirlama/yeni",
   "dersler", "dersler/[id]", "hakkimizda", "egitmen/[id]", "yorumlar", "yardim", "gizlilik",
   "rezervasyon/basarili", "rezervasyonlar", "rezervasyonlar/[id]", "yorum-yaz", "profil", "profil/ayarlar", "bildirimler",
+  "rezervasyonlar/[id]/degistir",
   "egitmen-paneli", "egitmen-paneli/yeni-ders", "egitmen-paneli/talepler", "egitmen-paneli/talepler/[id]",
   "egitmen-paneli/takvim", "egitmen-paneli/dersler/[id]", "gelistirici/e-postalar",
 ];
@@ -41,7 +44,7 @@ test("korumalı sayfalar veri katmanında oturum ve rol kontrolü yapar", () => 
 test("ödeme ekranı ve ders ücreti yok; üyeler ödemeyi başta toplu yapar", () => {
   assert.equal(existsSync(join(app, "odeme")), false);
   const walk = (dir) => readdirSync(dir).flatMap((name) => statSync(join(dir, name)).isDirectory() ? walk(join(dir, name)) : [join(dir, name)]);
-  for (const file of walk(new URL("../src/", import.meta.url).pathname).filter((path) => /\.tsx?$/.test(path))) {
+  for (const file of walk(join(root, "src")).filter((path) => /\.tsx?$/.test(path))) {
     assert.doesNotMatch(readFileSync(file, "utf8"), /PaymentScreen|Kart numarası|href="\/odeme|priceTl|formatPrice|price_tl/, file);
   }
 });
@@ -64,4 +67,16 @@ test("telefon bildirimleri: service worker, manifest ve yalnızca bilinen push s
   assert.match(actions, /fcm\\.googleapis\\.com/, "uç noktalar push servisleriyle sınırlı olmalı (SSRF)");
   const config = readFileSync(new URL("next.config.ts", root), "utf8");
   assert.match(config, /source: "\/sw\.js"/, "service worker önbelleğe alınmamalı");
+});
+
+test("güvenlik: şifre bağlantıları saklanmaz, hız sınırı kalıcıdır ve başlıklar ayarlıdır", () => {
+  const mail = readFileSync(join(root, "src/lib/mail.ts"), "utf8");
+  const notify = readFileSync(join(root, "src/lib/notify.ts"), "utf8");
+  const limiter = readFileSync(join(root, "src/lib/rate-limit.ts"), "utf8");
+  const config = readFileSync(join(root, "next.config.ts"), "utf8");
+  assert.match(notify, /sensitive: true/);
+  assert.match(mail, /keepBody = !email\.sensitive/);
+  assert.match(limiter, /rateLimits/);
+  assert.match(config, /Content-Security-Policy/);
+  assert.match(config, /Strict-Transport-Security/);
 });

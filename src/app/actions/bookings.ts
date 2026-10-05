@@ -74,6 +74,49 @@ export async function cancelBooking(_: FormState, formData: FormData): Promise<F
   return { ok: true, message: "Rezervasyonun iptal edildi." };
 }
 
+export async function rescheduleBooking(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ role: "member" });
+  const parsed = z.object({ bookingId: z.uuid(), lessonId: z.uuid() }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Ders seçimi geçersiz." };
+  const db = await getDb();
+  let newBookingId: string;
+  try {
+    newBookingId = await db.transaction(async (tx) => {
+      const [current] = await tx.select({ lessonId: bookings.lessonId, status: bookings.status, startsAt: lessons.startsAt })
+        .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+        .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id))).for("update");
+      if (!current || !["pending", "approved"].includes(current.status)) throw new BookingError("Aktif rezervasyon bulunamadı.");
+      if (current.lessonId === parsed.data.lessonId) throw new BookingError("Zaten bu derstesin.");
+      const hoursLeft = (current.startsAt.getTime() - Date.now()) / 3_600_000;
+      if (hoursLeft <= 0) throw new BookingError("Başlamış bir ders değiştirilemez.");
+      if (current.status === "approved" && hoursLeft < studio.cancellationHours) throw new BookingError(`Derse ${studio.cancellationHours} saatten az kaldığı için çevrimiçi değişiklik kapandı.`);
+
+      const [target] = await tx.select({ id: lessons.id, status: lessons.status, startsAt: lessons.startsAt, capacity: lessons.capacity })
+        .from(lessons).where(eq(lessons.id, parsed.data.lessonId)).for("update");
+      if (!target || target.status !== "published" || target.startsAt.getTime() <= Date.now()) throw new BookingError("Seçtiğin ders artık uygun değil.");
+      const [{ taken }] = await tx.select({ taken: sql<number>`count(*)::int` }).from(bookings)
+        .where(and(eq(bookings.lessonId, target.id), inArray(bookings.status, ["pending", "approved"])));
+      if (taken >= target.capacity) throw new BookingError("Seçtiğin ders doldu. Başka bir saat seçebilirsin.");
+      const [existing] = await tx.select({ id: bookings.id, status: bookings.status }).from(bookings)
+        .where(and(eq(bookings.lessonId, target.id), eq(bookings.memberId, user.id))).for("update");
+      if (existing && ["pending", "approved"].includes(existing.status)) throw new BookingError("Bu ders için zaten aktif bir rezervasyonun var.");
+
+      await tx.update(bookings).set({ status: "cancelled", updatedAt: new Date() }).where(eq(bookings.id, parsed.data.bookingId));
+      if (existing) {
+        await tx.update(bookings).set({ status: "pending", attendance: null, attendanceMarkedAt: null, trainerNote: null, decidedAt: null, updatedAt: new Date() }).where(eq(bookings.id, existing.id));
+        return existing.id;
+      }
+      const [created] = await tx.insert(bookings).values({ lessonId: target.id, memberId: user.id }).returning({ id: bookings.id });
+      return created.id;
+    });
+  } catch (error) {
+    if (error instanceof BookingError) return { error: error.message };
+    throw error;
+  }
+  after(async () => { await notifyBookingCancelled(parsed.data.bookingId); await notifyBookingRequested(newBookingId); });
+  redirect(`/rezervasyon/basarili?r=${newBookingId}&degisti=1`);
+}
+
 export async function decideBooking(_: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser({ role: "trainer" });
   const parsed = z.object({ bookingId: z.uuid(), decision: z.enum(["approve", "reject"]), trainerNote: note, back: z.string().optional() }).safeParse(Object.fromEntries(formData));

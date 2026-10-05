@@ -59,7 +59,7 @@ export async function seedDemoData(db: Db) {
   const at = (list: typeof created, time: string, nth = 0) => list.filter((lesson) => new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" }).format(lesson.startsAt) === time)[nth];
 
   const booking = (lesson: (typeof created)[number] | undefined, member: string, status: "pending" | "approved", memberNote?: string) =>
-    lesson ? { lessonId: lesson.id, memberId: id(member), status, memberNote, decidedAt: status === "approved" ? new Date(lesson.startsAt.getTime() - 2 * 24 * 60 * 60 * 1000) : null } : null;
+    lesson ? { lessonId: lesson.id, memberId: id(member), status, memberNote, decidedAt: status === "approved" ? new Date(lesson.startsAt.getTime() - 2 * 24 * 60 * 60 * 1000) : null, attendance: status === "approved" && lesson.startsAt.getTime() < now ? "attended" as const : null, attendanceMarkedAt: status === "approved" && lesson.startsAt.getTime() < now ? new Date(lesson.startsAt.getTime() + lessonDefaults.durationMin * 60_000) : null } : null;
 
   const fullLesson = at(upcoming, "12:00");
   const bookingRows = [

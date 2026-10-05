@@ -21,7 +21,7 @@ export default async function BookingDetailPage({ params }: PageProps<"/rezervas
   const finished = hoursLeft <= 0;
   const lockedReason = booking.status === "approved" && hoursLeft < studio.cancellationHours
     ? `Derse ${studio.cancellationHours} saatten az kaldığı için çevrimiçi iptal kapandı. Gelemeyeceksen lütfen stüdyoya haber ver.` : undefined;
-  const status = finished && booking.status === "approved" ? "Katıldın" : bookingStatusLabels[booking.status];
+  const status = finished && booking.status === "approved" ? booking.attendance === "attended" ? "Katıldın" : booking.attendance === "no_show" ? "Katılmadın" : "Katılım bekleniyor" : bookingStatusLabels[booking.status];
 
   return <AppShell className="booking-detail-screen" nav={false}>
     <TopBar back="/rezervasyonlar" title="Rezervasyon"/>
@@ -41,9 +41,10 @@ export default async function BookingDetailPage({ params }: PageProps<"/rezervas
         {booking.trainerNote && <p><span>Eğitmenin notu</span>{booking.trainerNote}</p>}
       </div>}
       <div className="detail-actions">
-        {finished && booking.status === "approved" && (booking.reviewId ? <p className="muted-note">Bu dersi değerlendirdin, teşekkürler.</p> : <ButtonLink href={`/yorum-yaz?r=${booking.id}`}>Dersi Değerlendir</ButtonLink>)}
+        {finished && booking.attendance === "attended" && (booking.reviewId ? <ButtonLink href={`/yorum-yaz?r=${booking.id}`} variant="outline">Yorumu Düzenle</ButtonLink> : <ButtonLink href={`/yorum-yaz?r=${booking.id}`}>Dersi Değerlendir</ButtonLink>)}
         {!finished && active && <>
           <p className="policy-line">Derse {studio.cancellationHours} saat kalana kadar iptal edebilirsin.</p>
+          {!lockedReason && <ButtonLink href={`/rezervasyonlar/${booking.id}/degistir`} variant="outline">Tarih veya Saati Değiştir</ButtonLink>}
           {studio.address && <ButtonLink href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${studio.name} ${studio.address}`)}`} variant="outline">Yol Tarifi Al</ButtonLink>}
           <CancelBookingForm bookingId={booking.id} lockedReason={lockedReason}/>
         </>}

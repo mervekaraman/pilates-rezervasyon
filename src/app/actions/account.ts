@@ -1,12 +1,13 @@
 "use server";
 
-import { and, eq, isNull, lt } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { bookings, lessons, notifications, reviews, users } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { createSession, deleteUserSessions } from "@/lib/auth/session";
 import { requireUser } from "@/lib/dal";
 import { fieldErrors, keepValues, normalizePhone, type FormState } from "@/lib/forms";
 import { isUuid } from "@/lib/queries";
@@ -41,7 +42,9 @@ export async function changePassword(_: FormState, formData: FormData): Promise<
   const [row] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, user.id)).limit(1);
   if (!row || !(await verifyPassword(parsed.data.current, row.passwordHash))) return { fieldErrors: { current: "Mevcut şifre hatalı." } };
   await db.update(users).set({ passwordHash: await hashPassword(parsed.data.password) }).where(eq(users.id, user.id));
-  return { ok: true, message: "Şifren güncellendi." };
+  await deleteUserSessions(user.id);
+  await createSession(user.id);
+  return { ok: true, message: "Şifren güncellendi; diğer cihazlardaki oturumların kapatıldı." };
 }
 
 export async function markNotificationsRead() {
@@ -61,15 +64,16 @@ export async function createReview(_: FormState, formData: FormData): Promise<Fo
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
 
   const db = await getDb();
-  const [booking] = await db.select({ status: bookings.status, startsAt: lessons.startsAt, trainerId: lessons.trainerId, reviewId: reviews.id })
+  const [booking] = await db.select({ status: bookings.status, attendance: bookings.attendance, trainerId: lessons.trainerId, reviewId: reviews.id })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).leftJoin(reviews, eq(reviews.bookingId, bookings.id))
-    .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id), lt(lessons.startsAt, new Date()))).limit(1);
-  if (!booking || booking.status !== "approved") return { error: "Sadece katıldığın dersleri değerlendirebilirsin.", values };
-  if (booking.reviewId) return { error: "Bu dersi zaten değerlendirdin.", values };
+    .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id))).limit(1);
+  if (!booking || booking.status !== "approved" || booking.attendance !== "attended") return { error: "Sadece eğitmenin katılımını onayladığı dersleri değerlendirebilirsin.", values };
 
-  await db.insert(reviews).values({
+  const reviewValues = {
     bookingId: parsed.data.bookingId, memberId: user.id, trainerId: booking.trainerId, rating: parsed.data.rating, comment: parsed.data.comment,
     recommendsTrainer: formData.get("recommendsTrainer") === "on", recommendsStudio: formData.get("recommendsStudio") === "on",
-  }).onConflictDoNothing();
-  redirect("/yorumlar?gonderildi=1");
+  };
+  if (booking.reviewId) await db.update(reviews).set({ ...reviewValues, updatedAt: new Date() }).where(and(eq(reviews.id, booking.reviewId), eq(reviews.memberId, user.id)));
+  else await db.insert(reviews).values(reviewValues);
+  redirect(`/yorumlar?${booking.reviewId ? "guncellendi" : "gonderildi"}=1`);
 }

@@ -73,14 +73,14 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
 
   const limitKey = `login:${parsed.data.email}`;
-  if (hitRateLimit(limitKey, 8, 15 * 60 * 1000)) return { error: "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar dene.", values };
+  if (await hitRateLimit(limitKey, 8, 15 * 60 * 1000)) return { error: "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar dene.", values };
 
   const db = await getDb();
   const [user] = await db.select({ id: users.id, role: users.role, passwordHash: users.passwordHash }).from(users).where(eq(users.email, parsed.data.email)).limit(1);
   const valid = await verifyPassword(parsed.data.password, user?.passwordHash ?? await dummyHash);
   if (!user || !valid) return { error: "E-posta ya da şifre hatalı.", values };
 
-  clearRateLimit(limitKey);
+  await clearRateLimit(limitKey);
   await createSession(user.id);
   redirect(safeNext(formData.get("sonra")) ?? homeFor(user));
 }
@@ -97,12 +97,13 @@ export async function requestPasswordReset(_: FormState, formData: FormData): Pr
   const parsed = z.object({ email }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
   const done: FormState = { ok: true, message: "Bu e-postayla kayıtlı bir hesap varsa, şifre yenileme bağlantısını gönderdik. Gelen kutunu (ve gereksiz klasörünü) kontrol et." };
-  if (hitRateLimit(`reset:${parsed.data.email}`, 3, 60 * 60 * 1000)) return done;
+  if (await hitRateLimit(`reset:${parsed.data.email}`, 3, 60 * 60 * 1000)) return done;
 
   const db = await getDb();
   const [user] = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.email, parsed.data.email)).limit(1);
   if (user) {
     const token = newToken();
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
     await db.insert(passwordResetTokens).values({ id: hashToken(token), userId: user.id, expiresAt: new Date(Date.now() + RESET_MINUTES * 60 * 1000) });
     after(() => sendPasswordResetEmail(user, `${appUrl()}/sifre-sifirlama/yeni?token=${token}`));
   }

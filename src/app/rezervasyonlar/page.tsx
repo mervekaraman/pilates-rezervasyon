@@ -52,10 +52,10 @@ function DateBlock({ date }: { date: Date }) {
 }
 
 function BookingListRow({ row, past = false }: { row: Row; past?: boolean }) {
-  const attended = past && row.status === "approved" && hasStarted(row.startsAt);
+  const attended = past && row.attendance === "attended";
   const trailing = attended
-    ? row.reviewId ? <StatusBadge tone="neutral">Değerlendirildi</StatusBadge> : <Link href={`/yorum-yaz?r=${row.id}`} className="see-all">Değerlendir<FlowlyIcon name="arrow-right" size={15}/></Link>
-    : <StatusBadge tone={bookingTone[row.status]} dot={!past}>{past && row.status === "approved" ? "Katıldın" : bookingStatusLabels[row.status]}</StatusBadge>;
+    ? row.reviewId ? <Link href={`/yorum-yaz?r=${row.id}`} className="see-all">Yorumu düzenle<FlowlyIcon name="arrow-right" size={15}/></Link> : <Link href={`/yorum-yaz?r=${row.id}`} className="see-all">Değerlendir<FlowlyIcon name="arrow-right" size={15}/></Link>
+    : <StatusBadge tone={bookingTone[row.status]} dot={!past}>{past && row.status === "approved" ? row.attendance === "no_show" ? "Katılmadın" : "Katılım bekleniyor" : bookingStatusLabels[row.status]}</StatusBadge>;
   return <div className={`booking-list-row${past ? " is-past" : ""}`}>
     <DateBlock date={row.startsAt}/>
     <Link href={`/rezervasyonlar/${row.id}`} className="booking-list-main"><h2>{lessonTypeLabels[row.type]}</h2><p>{formatTime(row.startsAt)} · {row.durationMin} dk · {row.trainerName}</p></Link>

@@ -5,8 +5,8 @@ import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { changePassword, createReview, updateProfile } from "@/app/actions/account";
 import { login, requestPasswordReset, resetPassword, signup } from "@/app/actions/auth";
-import { cancelBooking, decideBooking, requestBooking } from "@/app/actions/bookings";
-import { cancelLesson, createLesson } from "@/app/actions/lessons";
+import { cancelBooking, decideBooking, requestBooking, rescheduleBooking } from "@/app/actions/bookings";
+import { cancelLesson, createLesson, markAttendance } from "@/app/actions/lessons";
 import { addDays, atStudioTime } from "@/lib/format";
 import type { FormState } from "@/lib/forms";
 import { FlowlyIcon, type FlowlyIconName } from "./icons";
@@ -129,21 +129,43 @@ export function CancelBookingForm({ bookingId, lockedReason }: { bookingId: stri
   </form>;
 }
 
-export function ReviewForm({ bookingId }: { bookingId: string }) {
+export function RescheduleForm({ bookingId, lessons }: { bookingId: string; lessons: { id: string; label: string; disabled?: boolean }[] }) {
+  const [state, action] = useActionState(rescheduleBooking, undefined);
+  return <form action={action} className="settings-form">
+    <input type="hidden" name="bookingId" value={bookingId}/>
+    <FormMessage state={state}/>
+    <label className="flowly-field"><span>Yeni ders</span><div><FlowlyIcon name="calendar" size={21}/><select name="lessonId" required defaultValue=""><option value="" disabled>Gün ve saat seç</option>{lessons.map((lesson) => <option key={lesson.id} value={lesson.id} disabled={lesson.disabled}>{lesson.label}</option>)}</select></div></label>
+    <SubmitButton pendingLabel="Değiştiriliyor…">Değişiklik Talebi Gönder</SubmitButton>
+  </form>;
+}
+
+export function ReviewForm({ bookingId, initial }: { bookingId: string; initial?: { rating: number; comment: string; recommendsTrainer: boolean; recommendsStudio: boolean } }) {
   const [state, action] = useActionState(createReview, undefined);
-  const [rating, setRating] = useState(5);
-  const [length, setLength] = useState(state?.values?.comment?.length ?? 0);
+  const [rating, setRating] = useState(initial?.rating ?? 5);
+  const [length, setLength] = useState(state?.values?.comment?.length ?? initial?.comment.length ?? 0);
   const words = ["", "Hiç beğenmedim", "Beklentimin altında", "İdare eder", "Çok iyiydi", "Harikaydı"];
   return <form action={action} noValidate>
     <input type="hidden" name="bookingId" value={bookingId}/>
     <input type="hidden" name="rating" value={rating}/>
     <FormMessage state={state}/>
     <div className="star-picker" role="radiogroup" aria-label="Puan">{[1, 2, 3, 4, 5].map((star) => <button type="button" key={star} role="radio" aria-checked={rating === star} aria-label={`${star} yıldız`} className={star <= rating ? "is-on" : ""} onClick={() => setRating(star)}><FlowlyIcon name="star" size={34}/></button>)}<span>{words[rating]}</span></div>
-    <label className="review-input"><span>Yorumun</span><textarea name="comment" maxLength={500} defaultValue={state?.values?.comment} onChange={(event) => setLength(event.target.value.length)} placeholder="Ders, eğitmen ve stüdyo hakkında deneyimini birkaç cümleyle anlat…" aria-invalid={Boolean(state?.fieldErrors?.comment)}/><small>{length}/500</small></label>
+    <label className="review-input"><span>Yorumun</span><textarea name="comment" maxLength={500} defaultValue={state?.values?.comment ?? initial?.comment} onChange={(event) => setLength(event.target.value.length)} placeholder="Ders, eğitmen ve stüdyo hakkında deneyimini birkaç cümleyle anlat…" aria-invalid={Boolean(state?.fieldErrors?.comment)}/><small>{length}/500</small></label>
     {state?.fieldErrors?.comment && <small className="check-error">{state.fieldErrors.comment}</small>}
-    <label className="check-row"><input type="checkbox" name="recommendsTrainer" defaultChecked/>Eğitmeni öneririm</label>
-    <label className="check-row"><input type="checkbox" name="recommendsStudio" defaultChecked/>Stüdyoyu öneririm</label>
-    <SubmitButton pendingLabel="Yayınlanıyor…">Yorumu Yayınla</SubmitButton>
+    <label className="check-row"><input type="checkbox" name="recommendsTrainer" defaultChecked={initial?.recommendsTrainer ?? true}/>Eğitmeni öneririm</label>
+    <label className="check-row"><input type="checkbox" name="recommendsStudio" defaultChecked={initial?.recommendsStudio ?? true}/>Stüdyoyu öneririm</label>
+    <SubmitButton pendingLabel="Kaydediliyor…">{initial ? "Yorumu Güncelle" : "Yorumu Yayınla"}</SubmitButton>
+  </form>;
+}
+
+export function AttendanceForm({ bookingId, attendance }: { bookingId: string; attendance: "attended" | "no_show" | null }) {
+  const [state, action] = useActionState(markAttendance, undefined);
+  return <form action={action} className="attendance-form">
+    <input type="hidden" name="bookingId" value={bookingId}/>
+    <div className="decision-actions">
+      <SubmitButton name="attendance" value="attended" icon={false} pendingLabel="…" variant={attendance === "attended" ? "primary" : "outline"}>Katıldı</SubmitButton>
+      <SubmitButton name="attendance" value="no_show" icon={false} pendingLabel="…" variant={attendance === "no_show" ? "primary" : "outline"}>Katılmadı</SubmitButton>
+    </div>
+    <FormMessage state={state}/>
   </form>;
 }
 

@@ -129,5 +129,6 @@ export async function sendPasswordResetEmail(user: { name: string; email: string
     heading: "Şifreni yenile.",
     paragraphs: [`Merhaba ${user.name.split(" ")[0]}, şifreni yenilemek için aşağıdaki bağlantıyı kullan. Bağlantı 1 saat geçerli ve yalnızca bir kez kullanılabilir.`, "Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; şifren değişmez."],
     action: { label: "Yeni şifre belirle", href: link },
+    sensitive: true,
   });
 }

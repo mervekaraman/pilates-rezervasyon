@@ -29,6 +29,20 @@
       "when": 1791189539751,
       "tag": "0003_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791210187596,
+      "tag": "0004_nostalgic_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791210513527,
+      "tag": "0005_backfill_review_attendance",
+      "breakpoints": true
     }
   ]
 }

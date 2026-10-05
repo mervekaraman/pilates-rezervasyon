@@ -87,3 +87,19 @@ export async function cancelLesson(_: FormState, formData: FormData): Promise<Fo
   after(() => notifyLessonCancelled(lessonId, result.bookingIds));
   redirect(`/egitmen-paneli/takvim?gun=${dayKey(result.startsAt)}&iptal=${result.bookingIds.length}`);
 }
+
+export async function markAttendance(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ role: "trainer" });
+  const parsed = z.object({ bookingId: z.uuid(), attendance: z.enum(["attended", "no_show"]) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Katılım kaydı geçersiz." };
+  const db = await getDb();
+  const [row] = await db.select({ status: bookings.status, startsAt: lessons.startsAt }).from(bookings)
+    .innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+    .where(and(eq(bookings.id, parsed.data.bookingId), eq(lessons.trainerId, user.id))).limit(1);
+  if (!row) return { error: "Rezervasyon bulunamadı." };
+  if (row.status !== "approved") return { error: "Yalnızca onaylı rezervasyonların katılımı işaretlenebilir." };
+  if (row.startsAt.getTime() > Date.now()) return { error: "Katılım, ders başladıktan sonra işaretlenebilir." };
+  await db.update(bookings).set({ attendance: parsed.data.attendance, attendanceMarkedAt: new Date(), updatedAt: new Date() }).where(eq(bookings.id, parsed.data.bookingId));
+  refresh();
+  return { ok: true, message: parsed.data.attendance === "attended" ? "Katılım kaydedildi." : "Katılmadı olarak kaydedildi." };
+}

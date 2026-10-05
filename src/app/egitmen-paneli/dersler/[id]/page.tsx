@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CancelLessonForm } from "@/components/flowly/forms";
+import { AttendanceForm, CancelLessonForm } from "@/components/flowly/forms";
 import { FlowlyIcon } from "@/components/flowly/icons";
 import { AppShell } from "@/components/flowly/shell";
 import { Avatar, EmptyState, InfoRow, Notice, StatusBadge, TopBar, WhatsAppLink, bookingTone } from "@/components/flowly/ui";
@@ -47,7 +47,7 @@ export default async function TrainerLessonPage({ params }: PageProps<"/egitmen-
         {roster.length ? [...roster].sort((a, b) => order[a.status] - order[b.status]).map((row) => <div key={row.id} className={`roster-row${row.status === "cancelled" ? " is-cancelled" : ""}`}>
           <Avatar name={row.memberName} src={row.memberAvatar} size={44}/>
           <div><strong>{row.memberName}</strong>{row.memberPhone && <span className="roster-contact"><a href={`tel:${row.memberPhone}`}>{formatPhone(row.memberPhone)}</a><WhatsAppLink href={whatsapp(row)}>{lesson.status === "cancelled" ? "İptali bildir" : "Hatırlat"}</WhatsAppLink></span>}{row.memberNote && <q>{row.memberNote}</q>}</div>
-          {row.status === "pending" ? <Link href={`/egitmen-paneli/talepler/${row.id}`} className="see-all">Talebi incele<FlowlyIcon name="arrow-right" size={15}/></Link> : <StatusBadge tone={bookingTone[row.status]} dot>{bookingStatusLabels[row.status]}</StatusBadge>}
+          {row.status === "pending" ? <Link href={`/egitmen-paneli/talepler/${row.id}`} className="see-all">Talebi incele<FlowlyIcon name="arrow-right" size={15}/></Link> : !upcoming && row.status === "approved" ? <AttendanceForm bookingId={row.id} attendance={row.attendance}/> : <StatusBadge tone={bookingTone[row.status]} dot>{bookingStatusLabels[row.status]}</StatusBadge>}
         </div>) : <EmptyState icon="users" title="Henüz katılımcı yok." text="Talepler geldikçe burada listelenecek."/>}
       </div>
     </section>

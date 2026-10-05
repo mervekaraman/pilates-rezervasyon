@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { emailOutbox } from "@/db/schema";
 import { studio } from "@/lib/studio";
@@ -23,7 +24,7 @@ function getTransporter(): Transporter | null {
 
 export const isMailConfigured = () => Boolean(process.env.SMTP_HOST);
 
-type Email = { to: string; subject: string; heading: string; paragraphs: string[]; details?: [string, string][]; action?: { label: string; href: string } };
+type Email = { to: string; subject: string; heading: string; paragraphs: string[]; details?: [string, string][]; action?: { label: string; href: string }; sensitive?: boolean };
 
 /** Sends through SMTP when configured; otherwise the message is only recorded (visible at /gelistirici/e-postalar in development). */
 export async function sendEmail(email: Email) {
@@ -43,7 +44,35 @@ export async function sendEmail(email: Email) {
   } else {
     console.info(`[e-posta] SMTP ayarlı değil, kaydedildi → ${email.to} · ${email.subject}`);
   }
-  await (await getDb()).insert(emailOutbox).values({ to: email.to, subject: email.subject, html, text, status, error });
+  // Password-reset links are usable credentials. Keep them visible only in local no-SMTP development;
+  // never persist a live reset token after a real delivery attempt.
+  const keepBody = !email.sensitive || (!transport && process.env.NODE_ENV !== "production");
+  await (await getDb()).insert(emailOutbox).values({
+    to: email.to, subject: email.subject,
+    html: keepBody ? html : "<p>Güvenlik nedeniyle hassas e-posta içeriği saklanmadı.</p>",
+    text: keepBody ? text : "Güvenlik nedeniyle hassas e-posta içeriği saklanmadı.",
+    status, error, retryable: !email.sensitive,
+  });
+}
+
+/** Retries non-sensitive failed messages. Password reset mail is intentionally never replayed. */
+export async function retryFailedEmails(limit = 25) {
+  const transport = getTransporter();
+  if (!transport) throw new Error("SMTP ayarlı değil.");
+  const db = await getDb();
+  const rows = await db.select().from(emailOutbox)
+    .where(and(eq(emailOutbox.status, "failed"), eq(emailOutbox.retryable, true))).limit(limit);
+  let sent = 0;
+  for (const row of rows) {
+    try {
+      await transport.sendMail({ from: process.env.MAIL_FROM ?? `${studio.name} <no-reply@localhost>`, to: row.to, subject: row.subject, html: row.html, text: row.text });
+      await db.update(emailOutbox).set({ status: "sent", error: null, attempts: row.attempts + 1 }).where(eq(emailOutbox.id, row.id));
+      sent += 1;
+    } catch (cause) {
+      await db.update(emailOutbox).set({ error: cause instanceof Error ? cause.message : String(cause), attempts: row.attempts + 1 }).where(eq(emailOutbox.id, row.id));
+    }
+  }
+  return { attempted: rows.length, sent };
 }
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
