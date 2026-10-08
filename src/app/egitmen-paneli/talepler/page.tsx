@@ -32,6 +32,7 @@ export default async function RequestsPage({ searchParams }: PageProps<"/egitmen
             <span>{formatDayLong(request.startsAt)}, {formatTime(request.startsAt)}</span>
             <span className="meta-line"><span>{lessonLevelLabels[request.level]}</span><span>{request.taken}/{request.capacity} dolu</span></span>
             {request.memberNote && <q>{request.memberNote}</q>}
+            {request.playlistUrl && <span className="playlist-tag"><FlowlyIcon name="music" size={14}/>Çalma listesi önerdi</span>}
             <time>{status === "pending" ? "Talep" : status === "approved" ? "Onay" : "Ret"} · {relativeTime(status === "pending" ? request.createdAt : request.decidedAt ?? request.createdAt)}</time>
           </div>
         </Link>

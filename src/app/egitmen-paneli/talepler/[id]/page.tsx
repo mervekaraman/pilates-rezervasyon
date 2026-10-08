@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { DecisionForm } from "@/components/flowly/forms";
+import { FlowlyIcon } from "@/components/flowly/icons";
 import { AppShell } from "@/components/flowly/shell";
 import { Avatar, ButtonLink, InfoRow, Notice, StatusBadge, TopBar, WhatsAppLink, bookingTone } from "@/components/flowly/ui";
 import { requireUser } from "@/lib/dal";
 import { bookingStatusLabels, formatDayLong, formatDayMonth, formatTime, hasStarted, lessonLevelLabels } from "@/lib/format";
 import { formatPhone } from "@/lib/forms";
 import { appUrl } from "@/lib/mail";
-import { getTrainerRequest } from "@/lib/queries";
+import { getTrainerRequest, memberEffort } from "@/lib/queries";
+import { parseSpotifyLink } from "@/lib/spotify";
 import { whatsappLink, whatsappMessage, type WhatsAppTopic } from "@/lib/whatsapp";
 
 export const metadata = { title: "Talep detayı" };
@@ -16,6 +18,8 @@ export default async function RequestDetailPage({ params }: PageProps<"/egitmen-
   const user = await requireUser({ role: "trainer", next: `/egitmen-paneli/talepler/${id}` });
   const request = await getTrainerRequest(user.id, id);
   if (!request) notFound();
+  const effort = await memberEffort(request.memberId);
+  const playlist = parseSpotifyLink(request.playlistUrl);
   const open = request.status === "pending" && !hasStarted(request.startsAt);
   const upcoming = !hasStarted(request.startsAt);
   const whatsapp = (topic: WhatsAppTopic) => whatsappLink(request.memberPhone, whatsappMessage({ topic, memberName: request.memberName, trainerName: user.name, startsAt: request.startsAt, trainerNote: request.trainerNote, siteUrl: appUrl() }));
@@ -29,6 +33,7 @@ export default async function RequestDetailPage({ params }: PageProps<"/egitmen-
           <h1>{request.memberName}</h1>
           <StatusBadge tone={request.completedLessons ? "neutral" : "moss"}>{request.completedLessons ? `${request.completedLessons} tamamlanan ders` : "İlk dersi olacak"}</StatusBadge>
           <p className="muted-note">Üye: {formatDayMonth(request.memberSince)} tarihinden beri</p>
+          {effort.average !== null && <p className="effort-summary">Son {effort.count} derste ortalama efor <strong>{effort.average.toFixed(1)}/10</strong></p>}
           <div className="contact-links">
             {request.memberPhone && <a href={`tel:${request.memberPhone}`} className="see-all">{formatPhone(request.memberPhone)}</a>}
             {open && <WhatsAppLink href={whatsapp("pending")}>WhatsApp&apos;tan yaz</WhatsAppLink>}
@@ -45,6 +50,11 @@ export default async function RequestDetailPage({ params }: PageProps<"/egitmen-
         </div>
         <h3>Üyenin notu</h3>
         <p className={request.memberNote ? "member-note" : "muted-note"}>{request.memberNote ?? "Not bırakılmadı."}</p>
+        {playlist && <div className="playlist-preview">
+          <h3>Üyenin müzik önerisi</h3>
+          {playlist.embedUrl && <iframe src={playlist.embedUrl} title={`${request.memberName} çalma listesi`} width="100%" height="152" loading="lazy" allow="encrypted-media; clipboard-write; fullscreen" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"/>}
+          <a href={playlist.url} target="_blank" rel="noopener noreferrer" className="see-all"><FlowlyIcon name="music" size={15}/>Spotify&apos;da aç</a>
+        </div>}
         {open ? <DecisionForm bookingId={request.id}/> : <>
           <div className="booking-state"><StatusBadge tone={bookingTone[request.status]} dot>{bookingStatusLabels[request.status]}</StatusBadge>{request.status === "pending" && <p>Ders başladığı için bu talep artık değiştirilemez.</p>}</div>
           {request.trainerNote && <Notice>Notun: {request.trainerNote}</Notice>}

@@ -52,10 +52,14 @@ function DateBlock({ date }: { date: Date }) {
 }
 
 function BookingListRow({ row, past = false }: { row: Row; past?: boolean }) {
-  const attended = past && row.status === "approved" && hasStarted(row.startsAt);
+  const absent = row.attendance === "no_show";
+  const attended = past && row.status === "approved" && hasStarted(row.startsAt) && !absent;
+  // After class: rate the effort first, then the review; both stay one tap away.
   const trailing = attended
-    ? row.reviewId ? <StatusBadge tone="neutral">Değerlendirildi</StatusBadge> : <Link href={`/yorum-yaz?r=${row.id}`} className="see-all">Değerlendir<FlowlyIcon name="arrow-right" size={15}/></Link>
-    : <StatusBadge tone={bookingTone[row.status]} dot={!past}>{past && row.status === "approved" ? "Katıldın" : bookingStatusLabels[row.status]}</StatusBadge>;
+    ? row.effort === null ? <Link href={`/rezervasyonlar/${row.id}#efor`} className="see-all">Eforunu puanla<FlowlyIcon name="arrow-right" size={15}/></Link>
+      : row.reviewId ? <StatusBadge tone="neutral">Efor {row.effort}/10</StatusBadge>
+        : <Link href={`/yorum-yaz?r=${row.id}`} className="see-all">Değerlendir<FlowlyIcon name="arrow-right" size={15}/></Link>
+    : <StatusBadge tone={absent ? "plum" : bookingTone[row.status]} dot={!past}>{absent ? "Katılmadın" : past && row.status === "approved" ? "Katıldın" : bookingStatusLabels[row.status]}</StatusBadge>;
   return <div className={`booking-list-row${past ? " is-past" : ""}`}>
     <DateBlock date={row.startsAt}/>
     <Link href={`/rezervasyonlar/${row.id}`} className="booking-list-main"><h2>{lessonTypeLabels[row.type]}</h2><p>{formatTime(row.startsAt)} · {row.durationMin} dk · {row.trainerName}</p></Link>

@@ -11,13 +11,13 @@ type NavUser = { name: string; avatarUrl: string | null };
 const headerItems: Record<NavVariant, { href: string; label: string }[]> = {
   public: [{ href: "/dersler", label: "Ders Programı" }, { href: "/hakkimizda", label: "Hakkımızda" }, { href: "/yardim", label: "Yardım" }],
   member: [{ href: "/dersler", label: "Ders Programı" }, { href: "/rezervasyonlar", label: "Rezervasyonlarım" }, { href: "/hakkimizda", label: "Hakkımızda" }, { href: "/yardim", label: "Yardım" }],
-  trainer: [{ href: "/egitmen-paneli", label: "Özet" }, { href: "/egitmen-paneli/takvim", label: "Takvim" }, { href: "/egitmen-paneli/talepler", label: "Talepler" }, { href: "/egitmen-paneli/yeni-ders", label: "Yeni Ders" }],
+  trainer: [{ href: "/egitmen-paneli", label: "Özet" }, { href: "/egitmen-paneli/takvim", label: "Takvim" }, { href: "/egitmen-paneli/talepler", label: "Talepler" }, { href: "/egitmen-paneli/uyeler", label: "Üyeler" }, { href: "/egitmen-paneli/yeni-ders", label: "Yeni Ders" }],
 };
 
 const bottomItems: Record<NavVariant, { href: string; label: string; icon: FlowlyIconName }[]> = {
   public: [{ href: "/dersler", label: "Program", icon: "calendar" }, { href: "/hakkimizda", label: "Stüdyo", icon: "studio" }, { href: "/yardim", label: "Yardım", icon: "help" }, { href: "/giris", label: "Giriş", icon: "user" }],
   member: [{ href: "/dersler", label: "Program", icon: "calendar" }, { href: "/rezervasyonlar", label: "Rezervasyonlar", icon: "bookmark" }, { href: "/bildirimler", label: "Bildirimler", icon: "bell" }, { href: "/profil", label: "Profil", icon: "user" }],
-  trainer: [{ href: "/egitmen-paneli", label: "Özet", icon: "home" }, { href: "/egitmen-paneli/takvim", label: "Takvim", icon: "calendar" }, { href: "/egitmen-paneli/talepler", label: "Talepler", icon: "users" }, { href: "/profil", label: "Profil", icon: "user" }],
+  trainer: [{ href: "/egitmen-paneli", label: "Özet", icon: "home" }, { href: "/egitmen-paneli/takvim", label: "Takvim", icon: "calendar" }, { href: "/egitmen-paneli/talepler", label: "Talepler", icon: "document" }, { href: "/egitmen-paneli/uyeler", label: "Üyeler", icon: "users" }, { href: "/profil", label: "Profil", icon: "user" }],
 };
 
 function useIsActive() {

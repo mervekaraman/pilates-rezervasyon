@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { logout } from "@/app/actions/auth";
 import { FlowlyIcon, type FlowlyIconName } from "@/components/flowly/icons";
+import { LogoutButton } from "@/components/flowly/push";
 import { AppShell } from "@/components/flowly/shell";
 import { Avatar, Brand, SeeAll } from "@/components/flowly/ui";
 import { requireUser } from "@/lib/dal";
@@ -36,7 +36,7 @@ export default async function ProfilePage() {
       <div className="profile-stats">{stats.map(([value, label]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
       <div className="profile-side">
         <div className="settings-list">{links.map(([icon, label, href]) => <Link key={href} href={href} className="setting-row"><FlowlyIcon name={icon}/><strong>{label}</strong><span/><FlowlyIcon name="chevron-right" size={18}/></Link>)}</div>
-        <form action={logout}><button type="submit" className="logout-link">Çıkış yap</button></form>
+        <LogoutButton/>
       </div>
     </section>
   </AppShell>;

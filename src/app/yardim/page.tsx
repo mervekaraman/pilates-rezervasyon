@@ -12,7 +12,8 @@ const groups: { title: string; items: [string, React.ReactNode][] }[] = [
     items: [
       ["Nasıl rezervasyon yaparım?", <>Ders programından günü ve saati seç, ders sayfasında <strong>Rezervasyon talebi gönder</strong>&apos;e bas. Talebin, eğitmen karar verene kadar senin için bir yer tutar.</>],
       ["Talebim ne zaman kesinleşir?", "Eğitmen talebini onayladığında rezervasyonun kesinleşir ve sana e-posta gelir. Durumu her zaman Rezervasyonlarım sayfasından da görebilirsin."],
-      ["Ders dolu görünüyor, ne yapabilirim?", "Dolu derslerde onay bekleyen talepler de yer tutar. Başka bir saat seçebilir ya da daha sonra tekrar bakabilirsin; iptal olan yerler hemen programa döner."],
+      ["Ders dolu görünüyor, ne yapabilirim?", "Ders sayfasından bekleme listesine katıl; bir yer açılınca sana bildirim ve e-postayla haber veririz, ilk talep gönderen yeri alır. Dolu derslerde onay bekleyen talepler de yer tutar."],
+      ["Derse gelmeden önce hatırlatma gelir mi?", "Evet. Onaylı dersinden bir gün önce akşam e-posta ve bildirim gönderiyoruz. Onay e-postasındaki takvim davetiyle dersi takvimine de ekleyebilirsin."],
       ["Ödemeyi nasıl yapıyorum?", "Ödemeni üyeliğinin başında toplu olarak yaparsın; dersler için ayrıca ücret ödenmez. Uygulama ödeme almaz, kart bilgisi istemez."],
     ],
   },
@@ -29,7 +30,7 @@ const groups: { title: string; items: [string, React.ReactNode][] }[] = [
     items: [
       ["Hangi seviyeyi seçmeliyim?", "Reformer'a yeniysen Başlangıç ya da Tüm seviyeler derslerinden başla. Eğitmenin, ilk dersinden sonra sana uygun seviyeyi önerir."],
       ["Derse ne getirmeliyim?", "Rahat, vücudu saran kıyafetler ve kaymaz pilates çorabı yeterli. Derse 10 dakika erken gelirsen aleti birlikte ayarlarsınız."],
-      ["Sağlık durumumu nasıl bildiririm?", "Rezervasyon talebine eklediğin not doğrudan eğitmenine gider. Bel, boyun, hamilelik gibi durumları mutlaka yaz."],
+      ["Sağlık durumumu nasıl bildiririm?", "Rezervasyon talebine eklediğin not yalnızca eğitmenine gider; bunun için formdaki açık rıza kutusunu işaretlemen gerekir. Bel, boyun, hamilelik gibi durumları yazman güvenli çalışman için önemli. Notlar dersten 6 ay sonra silinir."],
     ],
   },
   {

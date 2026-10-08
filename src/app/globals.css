@@ -791,3 +791,115 @@ a.contact-item{transition:border-color .2s}a.contact-item:hover{border-color:rgb
 .roster-row.is-cancelled{opacity:1}
 .roster-row.is-cancelled>:first-child,.roster-row.is-cancelled strong,.roster-row.is-cancelled q,.roster-row.is-cancelled .status-badge{opacity:.55}
 .request-status .whatsapp-link{margin-left:auto}
+
+/* Add to calendar */
+.calendar-actions{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:6px}
+.calendar-actions .flowly-button{gap:10px}
+.success-screen .whatsapp-button{gap:10px;margin-bottom:14px}
+.detail-actions>.whatsapp-link{align-self:center;margin-bottom:4px}
+.calendar-remove{display:inline-flex;align-items:center;gap:6px;margin-top:6px}
+.success-screen .flowly-button.is-outline{background:transparent;color:var(--ivory)}
+.success-screen .success-check{border-color:var(--ivory);color:var(--ivory)}
+.success-screen .success-reminder{margin:10px 0 0;font-weight:600}
+
+/* Effort (RPE 1–10) + attendance */
+.effort-card{width:100%;margin:6px 0 18px;padding:20px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);text-align:left}
+.effort-form fieldset{margin:0 0 16px;padding:0;border:0}
+.effort-form legend{margin-bottom:14px;font-family:var(--display);font-size:18px;font-weight:600}
+.effort-scale{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+.effort-option{position:relative;cursor:pointer}
+.effort-option input{position:absolute;opacity:0;pointer-events:none}
+.effort-option span{display:grid;place-items:center;height:44px;border:1px solid rgba(29,27,27,.18);border-radius:10px;font-size:15px;font-weight:600;transition:background .2s,border-color .2s,color .2s}
+/* Filled up to the chosen value, deepening from moss to plum as the effort rises. */
+.effort-option.is-filled span{border-color:transparent;background:color-mix(in srgb,var(--plum) calc(var(--level) * 10%),var(--moss));color:var(--ivory)}
+.effort-option input:focus-visible+span{outline:2px solid var(--plum);outline-offset:2px}
+.effort-ends{display:flex;justify-content:space-between;margin-top:8px;color:var(--muted);font-size:12px}
+.effort-word{margin:12px 0 0;font-size:15px;font-weight:600}
+@media(max-width:480px){.effort-scale{grid-template-columns:repeat(5,minmax(0,1fr))}.effort-option span{height:48px}}
+.roster-attendance{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.attendance-toggle div{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.attendance-toggle button{min-height:32px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:13px;font-weight:600}
+.attendance-toggle button.is-on{background:var(--moss);color:var(--ivory)}
+.attendance-toggle button.is-on.is-absent{background:var(--plum)}
+.effort-pill{color:var(--muted);font-size:12px;font-weight:600}
+.effort-summary{margin:0 0 10px;color:var(--muted);font-size:14px}
+.effort-summary strong{color:var(--ink)}
+
+/* Trainer adds a member to a class */
+.add-member-open{gap:10px;margin:18px 0 6px}
+.add-member{margin:18px 0 6px;padding:18px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}
+.add-member-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.add-member-head h3{margin:0;font-size:17px}
+.add-member-head .text-button{padding:0;border:0;background:none;color:var(--muted);font-size:14px}
+.add-member-search{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;border:1px solid rgba(29,27,27,.2);border-radius:var(--radius);background:var(--ivory)}
+.add-member-search input{flex:1;min-width:0;border:0;background:transparent;font-size:15px;outline:0}
+.add-member-search:focus-within{border-color:var(--plum)}
+.add-member-list{display:flex;flex-direction:column;margin:10px 0 14px}
+.add-member-list label{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:12px 10px;border-radius:10px;cursor:pointer}
+.add-member-list label:hover{background:rgba(29,27,27,.04)}
+.add-member-list label.is-selected{background:rgba(95,97,45,.14)}
+.add-member-list strong{display:inline-flex;align-items:center;gap:6px}
+.add-member-list label.is-selected strong{color:var(--moss)}
+.add-member-list input{position:absolute;opacity:0;pointer-events:none}
+.add-member-list span{color:var(--muted);font-size:13px}
+.add-member-list label:has(input:focus-visible){outline:2px solid var(--plum);outline-offset:2px}
+.add-member-note{margin:10px 0 0;color:var(--muted);font-size:13px;text-align:center}
+.added-offer p strong{color:var(--ink)}
+
+/* Member's Spotify playlist suggestion */
+.playlist-field{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px;text-align:left}
+.playlist-field>span{display:inline-flex;align-items:center;gap:8px;font-family:var(--display);font-weight:600}
+.playlist-field>span small{color:var(--muted);font-family:var(--sans);font-weight:400}
+.playlist-field input{min-height:48px;padding:0 14px;border:1px solid rgba(29,27,27,.22);border-radius:var(--radius);background:rgba(255,255,255,.25);font-size:15px}
+.playlist-field input:focus{outline:0;border-color:var(--plum)}
+.playlist-field.has-error input{border-color:var(--danger)}
+.playlist-field .check-error{margin:0}
+.booking-form .playlist-field{margin-bottom:14px}
+.playlist-card{width:100%;margin:0 0 6px;padding:4px 18px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}
+.playlist-actions{display:flex;align-items:center;gap:16px;margin-top:12px}
+.playlist-actions .flowly-button{width:auto;min-height:44px;padding:0 20px;font-size:15px}
+.playlist-actions .text-button{padding:0;border:0;background:none;color:var(--muted);font-size:14px;border-bottom:1px solid currentColor}
+.playlist-preview{margin:18px 0}
+.playlist-preview h3{margin:0 0 10px}
+.playlist-preview iframe{display:block;margin-bottom:10px;border:0;border-radius:12px}
+.playlist-preview .see-all,.playlist-link,.playlist-tag{display:inline-flex;align-items:center;gap:6px}
+.playlist-link{margin-top:4px;color:var(--moss);font-size:13px;font-weight:600}
+.playlist-tag{margin-top:4px;color:var(--moss);font-size:13px}
+.roster-row div>a.playlist-link{display:inline-flex;color:var(--moss)}
+.edit-lesson-link{display:inline-flex;margin:14px 0 4px}
+
+/* Waitlist */
+.waitlist-form{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.waitlist-state{display:flex;gap:8px;align-items:flex-start;margin:0;color:var(--muted);font-size:14px;line-height:1.45}
+.waitlist-state svg{flex:none;margin-top:1px;color:var(--moss)}
+.side-switch-link{display:block;margin-top:14px;color:var(--muted);font-size:14px;text-align:center;text-decoration:underline;text-underline-offset:3px}
+.waitlist-roster{margin-top:22px}
+.waitlist-roster h3{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;font-size:17px}
+.waitlist-roster h3 span{color:var(--muted);font-size:13px;font-weight:400}
+.waitlist-roster ol{margin:0;padding-left:20px}
+.waitlist-roster li{padding:8px 0;border-bottom:1px solid var(--line)}
+.waitlist-roster li a{margin-left:10px;color:var(--muted);font-size:13px}
+
+/* Account: delete */
+.delete-account{margin-top:6px;padding:16px;border:1px solid rgba(119,85,109,.35);border-radius:var(--radius-lg)}
+.delete-account>p{margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.5}
+.delete-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.delete-actions .flowly-button{width:auto;border-color:var(--danger);color:var(--danger)}
+.delete-actions .text-button{padding:0;border:0;background:none;color:var(--muted);font-size:14px}
+
+/* Trainer: member directory */
+.members-screen section>h1{margin:28px 0 18px;font-size:48px}
+.member-search{display:flex;align-items:center;gap:14px}
+.member-search label{flex:1;display:flex;align-items:center;gap:10px;min-height:50px;padding:0 14px;border:1px solid rgba(29,27,27,.2);border-radius:var(--radius);background:rgba(255,255,255,.25)}
+.member-search input{flex:1;min-width:0;border:0;background:transparent;font-size:15px;outline:0}
+.member-search label:focus-within{border-color:var(--plum)}
+.member-search .text-link{color:var(--muted);font-size:14px;text-decoration:underline;text-underline-offset:3px}
+.member-list article{display:grid;grid-template-columns:52px 1fr auto;gap:14px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line)}
+.member-main{display:flex;flex-direction:column;gap:4px;min-width:0}
+.member-main>span{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:13px}
+.member-main>span a{overflow-wrap:anywhere}
+.member-stats span{white-space:nowrap}
+.member-stats .is-warning{color:var(--plum);font-weight:600}
+@media(min-width:1024px){.members-screen{--page-w:960px}.member-list{display:grid;grid-template-columns:1fr 1fr;column-gap:40px}}
+@media(max-width:420px){.member-list article{grid-template-columns:44px 1fr}.member-list article .whatsapp-link{grid-column:2}}
+.consent-row{align-items:flex-start;margin:8px 0 4px;font-size:13px;line-height:1.45;color:var(--muted)}.consent-row a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}

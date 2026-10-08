@@ -1,4 +1,4 @@
-export type FlowlyIconName = "arrow-left" | "arrow-right" | "chevron-down" | "chevron-left" | "chevron-right" | "bookmark" | "x" | "home" | "calendar" | "heart" | "user" | "search" | "filter" | "pin" | "clock" | "star" | "users" | "level" | "bell" | "settings" | "mail" | "phone" | "lock" | "eye" | "card" | "document" | "check" | "plus" | "share" | "help" | "trash" | "studio" | "repeat" | "hourglass" | "tag" | "mat" | "chat";
+export type FlowlyIconName = "arrow-left" | "arrow-right" | "chevron-down" | "chevron-left" | "chevron-right" | "bookmark" | "x" | "home" | "calendar" | "heart" | "user" | "search" | "filter" | "pin" | "clock" | "star" | "users" | "level" | "bell" | "settings" | "mail" | "phone" | "lock" | "eye" | "card" | "document" | "check" | "plus" | "share" | "help" | "trash" | "studio" | "repeat" | "hourglass" | "tag" | "mat" | "chat" | "music";
 
 export function FlowlyIcon({ name, size = 24, className }: { name: FlowlyIconName; size?: number; className?: string }) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -24,6 +24,7 @@ export function FlowlyIcon({ name, size = 24, className }: { name: FlowlyIconNam
     bell: <><path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4Z" {...common}/><path d="M10 20h4" {...common}/></>,
     settings: <><circle cx="12" cy="12" r="3" {...common}/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" {...common}/></>,
     mail: <><rect x="3" y="5" width="18" height="14" rx="1" {...common}/><path d="m4 7 8 6 8-6" {...common}/></>,
+    music: <><path d="M9 18V5l11-2v13" {...common}/><circle cx="6" cy="18" r="3" {...common}/><circle cx="17" cy="16" r="3" {...common}/></>,
     chat: <path d="M20 11.5a8 8 0 0 1-11.7 7.1L4 20l1.3-4.1A8 8 0 1 1 20 11.5Z" {...common}/>,
     phone: <path d="M5 3h4l2 5-2.5 2a15 15 0 0 0 5.5 5.5L16 13l5 2v4c0 1.1-.9 2-2 2C10.2 21 3 13.8 3 5c0-1.1.9-2 2-2Z" {...common}/>,
     lock: <><rect x="5" y="10" width="14" height="11" rx="1" {...common}/><path d="M8 10V7a4 4 0 0 1 8 0v3" {...common}/></>,

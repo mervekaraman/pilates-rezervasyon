@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { changePassword, createReview, updateProfile } from "@/app/actions/account";
+import { changePassword, confirmEmailChange, createReview, deleteAccount, requestEmailChange, updateProfile } from "@/app/actions/account";
 import { login, requestPasswordReset, resetPassword, signup } from "@/app/actions/auth";
-import { cancelBooking, decideBooking, requestBooking } from "@/app/actions/bookings";
-import { cancelLesson, createLesson } from "@/app/actions/lessons";
-import { addDays, atStudioTime } from "@/lib/format";
+import { addMemberToLesson, cancelBooking, decideBooking, joinWaitlist, leaveWaitlist, requestBooking, updatePlaylist } from "@/app/actions/bookings";
+import { markAttendance, rateEffort } from "@/app/actions/attendance";
+import { cancelLesson, createLesson, updateLesson } from "@/app/actions/lessons";
+import { addDays, atStudioTime, effortLabels } from "@/lib/format";
 import type { FormState } from "@/lib/forms";
 import { FlowlyIcon, type FlowlyIconName } from "./icons";
 import { Notice } from "./ui";
@@ -75,7 +76,7 @@ export function SignupForm({ next }: { next?: string }) {
     {showInvite
       ? <Field label="Eğitmen davet kodu" name="inviteCode" icon="tag" autoComplete="off" placeholder="Stüdyonun verdiği kod" defaultValue={state?.values?.inviteCode} error={state?.fieldErrors?.inviteCode} hint="Danışan olarak kayıt oluyorsan bu alanı boş bırak."/>
       : <button type="button" className="inline-link" onClick={() => setTrainer(true)}>Eğitmen misin? Davet kodunu gir</button>}
-    <label className={`check-row${state?.fieldErrors?.terms ? " has-error" : ""}`}><input type="checkbox" name="terms"/><span><Link href="/gizlilik" target="_blank">Kullanım koşullarını ve gizlilik metnini</Link> okudum, kabul ediyorum.</span></label>
+    <label className={`check-row${state?.fieldErrors?.terms ? " has-error" : ""}`}><input type="checkbox" name="terms"/><span><Link href="/gizlilik#aydinlatma" target="_blank">Aydınlatma metnini</Link> okudum, <Link href="/gizlilik#kosullar" target="_blank">kullanım koşullarını</Link> kabul ediyorum.</span></label>
     {state?.fieldErrors?.terms && <small className="check-error">{state.fieldErrors.terms}</small>}
     <SubmitButton pendingLabel="Hesap açılıyor…">Üye Ol</SubmitButton>
   </form>;
@@ -109,9 +110,46 @@ export function BookingRequestForm({ lessonId }: { lessonId: string }) {
   return <form action={action} className="booking-form" noValidate>
     <input type="hidden" name="lessonId" value={lessonId}/>
     <FormMessage state={state}/>
-    <label className="note-field"><span>Eğitmenine not <small>(isteğe bağlı)</small></span><textarea name="memberNote" maxLength={300} placeholder="Ör. bel hassasiyetim var, ilk reformer dersim…"/></label>
+    <label className="note-field"><span>Eğitmenine not <small>(isteğe bağlı)</small></span><textarea name="memberNote" maxLength={300} defaultValue={state?.values?.memberNote} placeholder="Ör. bel hassasiyetim var, ilk reformer dersim…"/></label>
     {state?.fieldErrors?.memberNote && <small className="check-error">{state.fieldErrors.memberNote}</small>}
+    <label className="check-row consent-row"><input type="checkbox" name="noteConsent"/><span>Not yazarsam, içindeki sağlık bilgisi dahil yalnızca eğitmenimle paylaşılmasına <Link href="/gizlilik#saglik">açık rıza</Link> veriyorum. Not, dersten 6 ay sonra silinir.</span></label>
+    {state?.fieldErrors?.noteConsent && <small className="check-error">{state.fieldErrors.noteConsent}</small>}
+    <PlaylistField defaultValue={state?.values?.playlistUrl} error={state?.fieldErrors?.playlistUrl}/>
     <SubmitButton pendingLabel="Talep gönderiliyor…">Rezervasyon Talebi Gönder</SubmitButton>
+  </form>;
+}
+
+function PlaylistField({ defaultValue, error }: { defaultValue?: string | null; error?: string }) {
+  return <label className={`playlist-field${error ? " has-error" : ""}`}>
+    <span><FlowlyIcon name="music" size={18}/>Spotify çalma listen <small>(isteğe bağlı)</small></span>
+    <input name="playlistUrl" type="url" inputMode="url" defaultValue={defaultValue ?? ""} placeholder="https://open.spotify.com/playlist/…" maxLength={300} aria-describedby="playlist-hint"/>
+    {error ? <small className="check-error">{error}</small> : <small id="playlist-hint" className="field-hint">Derste çalmasını istediğin bir liste varsa linkini yapıştır; eğitmenin görür.</small>}
+  </label>;
+}
+
+/** Add, change or remove the playlist suggestion on an upcoming booking. */
+export function PlaylistForm({ bookingId, current }: { bookingId: string; current: string | null }) {
+  const [state, action] = useActionState(updatePlaylist, undefined);
+  return <form action={action} className="playlist-form" noValidate>
+    <input type="hidden" name="bookingId" value={bookingId}/>
+    <FormMessage state={state}/>
+    <PlaylistField defaultValue={state?.values?.playlistUrl ?? current} error={state?.fieldErrors?.playlistUrl}/>
+    <div className="playlist-actions">
+      <SubmitButton variant="outline" icon={false} pendingLabel="Kaydediliyor…">{current ? "Listeyi Güncelle" : "Listeyi Gönder"}</SubmitButton>
+      {current && <button type="submit" name="playlistUrl" value="" className="text-button">Kaldır</button>}
+    </div>
+  </form>;
+}
+
+/** Full class: join or leave the waitlist. */
+export function WaitlistForm({ lessonId, onList }: { lessonId: string; onList: boolean }) {
+  const [state, action] = useActionState(onList ? leaveWaitlist : joinWaitlist, undefined);
+  return <form action={action} className="waitlist-form">
+    <input type="hidden" name="lessonId" value={lessonId}/>
+    {state?.error && <Notice tone="error">{state.error}</Notice>}
+    {onList
+      ? <><p className="waitlist-state"><FlowlyIcon name="bell" size={18}/>Bekleme listesindesin. Yer açılınca bildirim ve e-postayla haber vereceğiz.</p><SubmitButton variant="outline" icon={false} pendingLabel="Çıkılıyor…">Listeden Çık</SubmitButton></>
+      : <><p className="waitlist-state">Yer açılırsa haber almak ister misin? İlk talep gönderen yeri alır.</p><SubmitButton icon={false} pendingLabel="Ekleniyor…">Bekleme Listesine Katıl</SubmitButton></>}
   </form>;
 }
 
@@ -147,15 +185,72 @@ export function ReviewForm({ bookingId }: { bookingId: string }) {
   </form>;
 }
 
+/** 1–10 effort (RPE) for a class the member attended; can be changed afterwards. */
+export function EffortForm({ bookingId, current }: { bookingId: string; current: number | null }) {
+  const [state, action] = useActionState(rateEffort, undefined);
+  const [effort, setEffort] = useState<number | null>(current);
+  return <form action={action} className="effort-form" noValidate>
+    <input type="hidden" name="bookingId" value={bookingId}/>
+    <FormMessage state={state}/>
+    <fieldset>
+      <legend>Bu ders seni ne kadar zorladı?</legend>
+      <div className="effort-scale" role="radiogroup" aria-label="Efor puanı, 1 çok hafif, 10 sınırımdaydım">
+        {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => <label key={value} className={`effort-option${effort !== null && value <= effort ? " is-filled" : ""}`} style={{ "--level": value } as React.CSSProperties}>
+          <input type="radio" name="effort" value={value} checked={effort === value} onChange={() => setEffort(value)}/>
+          <span>{value}</span>
+        </label>)}
+      </div>
+      <div className="effort-ends" aria-hidden="true"><span>Çok hafif</span><span>Sınırımdaydım</span></div>
+      <p className="effort-word" aria-live="polite">{effort ? `${effort}/10 · ${effortLabels[effort]}` : "1 ile 10 arasında bir puan seç."}</p>
+    </fieldset>
+    <SubmitButton pendingLabel="Kaydediliyor…" variant={current ? "outline" : "primary"} icon={false}>{current ? "Puanı Güncelle" : "Eforumu Kaydet"}</SubmitButton>
+  </form>;
+}
+
 export function ProfileForm({ name, phone, email, emailNotifications }: { name: string; phone: string; email: string; emailNotifications: boolean }) {
   const [state, action] = useActionState(updateProfile, undefined);
   return <form action={action} className="settings-form" noValidate>
     <FormMessage state={state}/>
     <Field label="Ad Soyad" name="name" icon="user" autoComplete="name" defaultValue={state?.values?.name ?? name} error={state?.fieldErrors?.name}/>
-    <div className="flowly-field is-readonly"><label htmlFor="field-email-readonly">E-posta</label><div><FlowlyIcon name="mail" size={21}/><input id="field-email-readonly" value={email} readOnly aria-describedby="email-hint"/></div><small id="email-hint" className="field-hint">E-posta adresini değiştirmek için stüdyoyla iletişime geç.</small></div>
+    <div className="flowly-field is-readonly"><label htmlFor="field-email-readonly">E-posta</label><div><FlowlyIcon name="mail" size={21}/><input id="field-email-readonly" value={email} readOnly aria-describedby="email-hint"/></div><small id="email-hint" className="field-hint">E-posta adresini aşağıdaki “E-posta adresi” bölümünden değiştirebilirsin.</small></div>
     <Field label="Cep telefonu" name="phone" type="tel" icon="phone" autoComplete="tel" inputMode="tel" defaultValue={state?.values?.phone ?? phone} error={state?.fieldErrors?.phone}/>
     <label className="preference-row"><FlowlyIcon name="bell"/><p><strong>E-posta bildirimleri</strong><span>Talep, onay ve iptal haberlerini e-postayla al.</span></p><input className="toggle" type="checkbox" name="emailNotifications" defaultChecked={emailNotifications}/></label>
     <SubmitButton pendingLabel="Kaydediliyor…" icon={false}>Değişiklikleri Kaydet</SubmitButton>
+  </form>;
+}
+
+export function EmailChangeForm() {
+  const [state, action] = useActionState(requestEmailChange, undefined);
+  return <form action={action} className="settings-form" noValidate>
+    <FormMessage state={state}/>
+    <Field label="Yeni e-posta" name="newEmail" type="email" icon="mail" autoComplete="email" defaultValue={state?.values?.newEmail} error={state?.fieldErrors?.newEmail}/>
+    <PasswordField label="Şifren" name="emailPassword" autoComplete="current-password" error={state?.fieldErrors?.emailPassword}/>
+    <SubmitButton pendingLabel="Gönderiliyor…" variant="outline" icon={false}>Onay Bağlantısı Gönder</SubmitButton>
+  </form>;
+}
+
+export function ConfirmEmailForm({ token }: { token: string }) {
+  const [state, action] = useActionState(confirmEmailChange, undefined);
+  if (state?.ok) return <><Notice tone="success">{state.message}</Notice><Link href="/profil" className="flowly-button">Profilime Git</Link></>;
+  return <form action={action}>
+    <input type="hidden" name="token" value={token}/>
+    <FormMessage state={state}/>
+    <SubmitButton pendingLabel="Onaylanıyor…">E-postamı Onayla</SubmitButton>
+  </form>;
+}
+
+/** Permanent deletion behind a password and an explicit confirmation. */
+export function DeleteAccountForm() {
+  const [state, action] = useActionState(deleteAccount, undefined);
+  const [open, setOpen] = useState(false);
+  if (!open) return <button type="button" className="danger-link" onClick={() => setOpen(true)}>Hesabımı sil</button>;
+  return <form action={action} className="settings-form delete-account" noValidate>
+    <FormMessage state={state}/>
+    <p>Hesabın, rezervasyonların, yorumların ve bildirimlerin kalıcı olarak silinir; bu işlem geri alınamaz. Yaklaşan derslerindeki yerin boşalır ve eğitmenine haber verilir.</p>
+    <PasswordField label="Şifren" name="deletePassword" autoComplete="current-password" error={state?.fieldErrors?.deletePassword}/>
+    <label className="check-row"><input type="checkbox" name="confirm"/>Hesabımın ve tüm verilerimin silineceğini anladım.</label>
+    {state?.fieldErrors?.confirm && <small className="check-error">{state.fieldErrors.confirm}</small>}
+    <div className="delete-actions"><SubmitButton variant="outline" icon={false} pendingLabel="Siliniyor…">Hesabımı Kalıcı Olarak Sil</SubmitButton><button type="button" className="text-button" onClick={() => setOpen(false)}>Vazgeç</button></div>
   </form>;
 }
 
@@ -280,6 +375,74 @@ export function NewLessonForm({ days, times, busy, now, defaults }: NewLessonFor
     <fieldset className="level-picker"><legend>Seviye</legend><div className="chip-group">{levels.map(([level, label]) => <label key={level} className="chip-radio"><input type="radio" name="level" value={level} defaultChecked={value("level", "tum") === level}/><span>{label}</span></label>)}</div></fieldset>
     <label className="note-field"><span><FlowlyIcon name="document" size={20}/>Not <small>(isteğe bağlı, üyeler görür)</small></span><textarea name="note" maxLength={300} defaultValue={state?.values?.note} placeholder="Ör. yeni başlayanlara uygun, havlu ve çorap getirmeyi unutmayın."/></label>
     <SubmitButton pendingLabel="Yayınlanıyor…">Dersi Yayınla</SubmitButton>
+  </form>;
+}
+
+type EditableLesson = { id: string; durationMin: number; capacity: number; level: string; note: string | null; taken: number };
+
+/** Trainer edits an upcoming class; day and time are fixed once members may have booked. */
+export function EditLessonForm({ lesson }: { lesson: EditableLesson }) {
+  const [state, action] = useActionState(updateLesson, undefined);
+  const value = (key: string, fallback: string) => state?.values?.[key] ?? fallback;
+  const invalid = (name: string) => Boolean(state?.fieldErrors?.[name]);
+  // Capacity can never go below the seats already held.
+  const capacities = Array.from({ length: 12 }, (_, index) => index + 1).filter((count) => count >= Math.max(lesson.taken, 1));
+  return <form action={action} noValidate>
+    <input type="hidden" name="lessonId" value={lesson.id}/>
+    <FormMessage state={state}/>
+    <div className="new-class-list">
+      <SelectRow icon="hourglass" label="Süre" name="durationMin" options={durations.map((minutes) => [String(minutes), `${minutes} dk`])} value={value("durationMin", String(lesson.durationMin))} invalid={invalid("durationMin")}/>
+      <SelectRow icon="users" label="Kontenjan" name="capacity" options={capacities.map((count) => [String(count), `${count} kişi`])} value={value("capacity", String(lesson.capacity))} invalid={invalid("capacity")}/>
+    </div>
+    {Object.entries(state?.fieldErrors ?? {}).filter(([key]) => key !== "level" && key !== "note").map(([key, message]) => <small key={key} className="check-error">{message}</small>)}
+    {lesson.taken > 0 && <p className="muted-note">Bu derste {lesson.taken} kayıt var. Seviye ya da süre değişirse kayıtlı üyelere bildirim gider.</p>}
+    <fieldset className="level-picker"><legend>Seviye</legend><div className="chip-group">{levels.map(([level, label]) => <label key={level} className="chip-radio"><input type="radio" name="level" value={level} defaultChecked={value("level", lesson.level) === level}/><span>{label}</span></label>)}</div></fieldset>
+    <label className="note-field"><span><FlowlyIcon name="document" size={20}/>Not <small>(isteğe bağlı, üyeler görür)</small></span><textarea name="note" maxLength={300} defaultValue={value("note", lesson.note ?? "")}/></label>
+    <SubmitButton pendingLabel="Kaydediliyor…">Değişiklikleri Kaydet</SubmitButton>
+  </form>;
+}
+
+/** Trainer's per-member "came / didn't come" switch on the class roster. */
+export function AttendanceToggle({ bookingId, value }: { bookingId: string; value: "attended" | "no_show" | null }) {
+  const [state, action] = useActionState(markAttendance, undefined);
+  return <form action={action} className="attendance-toggle">
+    <input type="hidden" name="bookingId" value={bookingId}/>
+    <div role="group" aria-label="Katılım">
+      <button type="submit" name="value" value="attended" aria-pressed={value !== "no_show"} className={value !== "no_show" ? "is-on" : ""}>Geldi</button>
+      <button type="submit" name="value" value="no_show" aria-pressed={value === "no_show"} className={value === "no_show" ? "is-on is-absent" : ""}>Gelmedi</button>
+    </div>
+    {state?.error && <small className="check-error">{state.error}</small>}
+  </form>;
+}
+
+type MemberOption = { id: string; name: string; phone: string | null; email: string };
+
+const fold = (value: string) => value.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+
+/** Trainer adds a member to their class: search by name, phone or e-mail, pick, confirm. */
+export function AddMemberForm({ lessonId, members, seatsLeft }: { lessonId: string; members: MemberOption[]; seatsLeft: number }) {
+  const [state, action] = useActionState(addMemberToLesson, undefined);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  if (!open) return <button type="button" className="flowly-button is-outline add-member-open" onClick={() => setOpen(true)} disabled={seatsLeft <= 0}>
+    <FlowlyIcon name="plus" size={20}/>{seatsLeft > 0 ? "Üye Ekle" : "Derste boş yer yok"}
+  </button>;
+
+  const needle = fold(query.trim());
+  const digits = query.replace(/\D/g, "");
+  const matches = members.filter((member) => !needle || fold(member.name).includes(needle) || fold(member.email).includes(needle) || (digits.length >= 3 && (member.phone ?? "").replace(/\D/g, "").includes(digits))).slice(0, 6);
+  return <form action={action} className="add-member" noValidate>
+    <input type="hidden" name="lessonId" value={lessonId}/>
+    <div className="add-member-head"><h3>Derse üye ekle</h3><button type="button" className="text-button" onClick={() => setOpen(false)}>Vazgeç</button></div>
+    <FormMessage state={state}/>
+    <label className="add-member-search"><FlowlyIcon name="search" size={20}/><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ad, telefon ya da e-posta" aria-label="Üye ara" autoFocus/></label>
+    {matches.length ? <div className="add-member-list" role="radiogroup" aria-label="Üyeler">{matches.map((member) => <label key={member.id} className={selected === member.id ? "is-selected" : ""}>
+      <input type="radio" name="memberId" value={member.id} checked={selected === member.id} onChange={() => setSelected(member.id)}/>
+      <strong>{selected === member.id && <FlowlyIcon name="check" size={16}/>}{member.name}</strong><span>{member.phone ?? member.email}</span>
+    </label>)}</div> : <p className="muted-note">Bu aramayla eşleşen üye yok. Üyenin önce uygulamaya kayıt olması gerekiyor.</p>}
+    <SubmitButton pendingLabel="Ekleniyor…" icon={false}>Derse Ekle</SubmitButton>
+    <p className="add-member-note">Rezervasyon onaylı oluşur; üyeye e-posta ve bildirim gider.</p>
   </form>;
 }
 

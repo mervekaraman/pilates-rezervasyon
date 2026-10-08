@@ -1,13 +1,13 @@
 /* eslint-disable @next/next/no-img-element -- Local studio photo with a fixed crop. */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookingRequestForm } from "@/components/flowly/forms";
+import { BookingRequestForm, WaitlistForm } from "@/components/flowly/forms";
 import { SeatBadge, seatsLeft } from "@/components/flowly/lessons";
 import { AppShell } from "@/components/flowly/shell";
 import { ButtonLink, InfoRow, Notice, StatusBadge, TopBar, TrainerChip, bookingTone } from "@/components/flowly/ui";
 import { getCurrentUser } from "@/lib/dal";
 import { bookingStatusLabels, dayKey, formatDayLong, formatTime, hasStarted, lessonLevelLabels, lessonTypeLabels } from "@/lib/format";
-import { getLesson } from "@/lib/queries";
+import { getLesson, isOnWaitlist } from "@/lib/queries";
 import { studio } from "@/lib/studio";
 
 export const metadata = { title: "Ders detayı" };
@@ -28,7 +28,7 @@ export default async function LessonPage({ params }: PageProps<"/dersler/[id]">)
   else if (active && lesson.myBookingId) booking = <><div className="booking-state"><StatusBadge tone={bookingTone[lesson.myStatus!]} dot>{bookingStatusLabels[lesson.myStatus!]}</StatusBadge><p>{lesson.myStatus === "approved" ? "Bu derste yerin ayrıldı." : "Talebin eğitmen onayı bekliyor."}</p></div><ButtonLink href={`/rezervasyonlar/${lesson.myBookingId}`}>Rezervasyonu Gör</ButtonLink></>;
   else if (!user) booking = <><ButtonLink href={`/giris?sonra=/dersler/${lesson.id}`}>Rezervasyon İçin Giriş Yap</ButtonLink><p className="side-switch">Hesabın yok mu? <Link href={`/uye-ol?sonra=/dersler/${lesson.id}`}>Üye ol</Link></p></>;
   else if (user.role === "trainer") booking = <Notice>Eğitmen hesabıyla rezervasyon yapılamaz. Danışan hesabıyla giriş yapmalısın.</Notice>;
-  else if (left === 0) booking = <><Notice>Bu derste yer kalmadı.</Notice><ButtonLink href={`/dersler?gun=${dayKey(lesson.startsAt)}`} variant="outline">Başka Bir Saat Seç</ButtonLink></>;
+  else if (left === 0) booking = <><Notice>Bu derste yer kalmadı.</Notice><WaitlistForm lessonId={lesson.id} onList={await isOnWaitlist(lesson.id, user.id)}/><Link href={`/dersler?gun=${dayKey(lesson.startsAt)}`} className="side-switch-link">Başka bir saat seç</Link></>;
   else booking = <BookingRequestForm lessonId={lesson.id}/>;
 
   return <AppShell className="lesson-screen" nav={false}>

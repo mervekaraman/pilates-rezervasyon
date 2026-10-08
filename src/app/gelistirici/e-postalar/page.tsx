@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { AppShell } from "@/components/flowly/shell";
 import { EmptyState, PageHeading, StatusBadge } from "@/components/flowly/ui";
 import { relativeTime } from "@/lib/format";
+import { requireUser } from "@/lib/dal";
 import { isMailConfigured } from "@/lib/mail";
 import { listOutbox } from "@/lib/queries";
 
@@ -11,9 +12,12 @@ export const metadata = { title: "Giden e-postalar" };
 const actionLink = (text: string) => text.match(/https?:\/\/\S+$/m)?.[0];
 
 // Development-only window into the outbox, so e-mail flows can be checked without an SMTP account.
+// Copies include password-reset links, so even locally only a signed-in trainer may open it
+// (anyone else on the same Wi-Fi could otherwise take over accounts).
 export default async function OutboxPage() {
   if (process.env.NODE_ENV === "production") notFound();
   await connection();
+  await requireUser({ role: "trainer", next: "/gelistirici/e-postalar" });
   const emails = await listOutbox();
   return <AppShell className="outbox-screen" nav={false}>
     <section>

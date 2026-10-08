@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { logout } from "@/app/actions/auth";
 import { removePushSubscription, savePushSubscription, sendTestPush } from "@/app/actions/push";
 import { FlowlyIcon } from "./icons";
 
@@ -124,4 +125,24 @@ export function PushPrompt({ publicKey }: { publicKey: string }) {
     {state === "off" && <button type="button" onClick={enable} disabled={busy}>{busy ? "Açılıyor…" : "Bildirimleri aç"}</button>}
     {note && <small role="status">{note}</small>}
   </div>;
+}
+
+/** Sign-out that also stops this device's notifications, so a shared phone stays private. */
+export function LogoutButton() {
+  const [busy, setBusy] = useState(false);
+  async function signOut() {
+    setBusy(true);
+    try {
+      const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration("/") : undefined;
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        await removePushSubscription(subscription.endpoint);
+        await subscription.unsubscribe();
+      }
+    } catch {
+      // The server drops the subscription with the session anyway.
+    }
+    await logout();
+  }
+  return <button type="button" className="logout-link" onClick={signOut} disabled={busy}>{busy ? "Çıkış yapılıyor…" : "Çıkış yap"}</button>;
 }
