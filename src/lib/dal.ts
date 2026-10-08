@@ -21,7 +21,4 @@ export async function requireUser(options: { role?: SessionUser["role"]; next?: 
   return user;
 }
 
-/** Only same-site relative paths are accepted as post-login destinations. */
-export function safeNext(value: FormDataEntryValue | string | null | undefined): string | null {
-  return typeof value === "string" && /^\/(?![/\\])/.test(value) ? value : null;
-}
+export { safeNext } from "@/lib/privacy";

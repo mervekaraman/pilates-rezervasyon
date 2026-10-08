@@ -1,9 +1,10 @@
 import "server-only";
-import { and, asc, desc, eq, gt, gte, isNull, lt, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db";
-import { bookings, emailOutbox, lessons, notifications, reviews, users, type BookingStatus } from "@/db/schema";
+import { bookings, emailOutbox, lessons, notifications, reviews, users, waitlist, type BookingStatus } from "@/db/schema";
 import { atStudioTime, dayKey, dayRange } from "@/lib/format";
+import { publicName } from "@/lib/privacy";
 
 // Read models for pages. Each function returns only what the UI renders (no password hashes, no raw rows).
 
@@ -72,7 +73,7 @@ export async function lessonCountsByDay(days: string[]) {
 
 export async function listMemberBookings(memberId: string) {
   const db = await getDb();
-  return db.select({ id: bookings.id, status: bookings.status, createdAt: bookings.createdAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, type: lessons.type, lessonStatus: lessons.status, trainerId: trainer.id, trainerName: trainer.name, trainerAvatar: trainer.avatarUrl, reviewId: reviews.id })
+  return db.select({ id: bookings.id, status: bookings.status, createdAt: bookings.createdAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, type: lessons.type, lessonStatus: lessons.status, trainerId: trainer.id, trainerName: trainer.name, trainerAvatar: trainer.avatarUrl, reviewId: reviews.id, attendance: bookings.attendance, effort: bookings.effort })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).innerJoin(trainer, eq(trainer.id, lessons.trainerId)).leftJoin(reviews, eq(reviews.bookingId, bookings.id))
     .where(eq(bookings.memberId, memberId)).orderBy(asc(lessons.startsAt));
 }
@@ -80,7 +81,7 @@ export async function listMemberBookings(memberId: string) {
 export async function getMemberBooking(memberId: string, bookingId: string) {
   if (!isUuid(bookingId)) return null;
   const db = await getDb();
-  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, decidedAt: bookings.decidedAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, type: lessons.type, lessonStatus: lessons.status, trainerId: trainer.id, trainerName: trainer.name, trainerAvatar: trainer.avatarUrl, reviewId: reviews.id })
+  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, decidedAt: bookings.decidedAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, type: lessons.type, lessonStatus: lessons.status, trainerId: trainer.id, trainerName: trainer.name, trainerAvatar: trainer.avatarUrl, reviewId: reviews.id, attendance: bookings.attendance, effort: bookings.effort })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).innerJoin(trainer, eq(trainer.id, lessons.trainerId)).leftJoin(reviews, eq(reviews.bookingId, bookings.id))
     .where(and(eq(bookings.id, bookingId), eq(bookings.memberId, memberId))).limit(1);
   return row ?? null;
@@ -100,12 +101,15 @@ export async function getTrainer(id: string) {
 
 export type ReviewSort = "yeni" | "yuksek";
 
+
+/** Public reviews (no sign-in needed): never carries a member's full name, photo or id. */
 export async function listReviews({ trainerId, limit = 50, sort = "yeni" }: { trainerId?: string; limit?: number; sort?: ReviewSort } = {}) {
   const db = await getDb();
-  return db.select({ id: reviews.id, rating: reviews.rating, comment: reviews.comment, createdAt: reviews.createdAt, memberName: member.name, memberAvatar: member.avatarUrl, trainerId: trainer.id, trainerName: trainer.name })
+  const rows = await db.select({ id: reviews.id, rating: reviews.rating, comment: reviews.comment, createdAt: reviews.createdAt, memberName: member.name, trainerId: trainer.id, trainerName: trainer.name })
     .from(reviews).innerJoin(member, eq(member.id, reviews.memberId)).innerJoin(trainer, eq(trainer.id, reviews.trainerId))
     .where(trainerId ? eq(reviews.trainerId, trainerId) : undefined)
     .orderBy(...(sort === "yuksek" ? [desc(reviews.rating), desc(reviews.createdAt)] : [desc(reviews.createdAt)])).limit(limit);
+  return rows.map((row) => ({ ...row, memberName: publicName(row.memberName), memberAvatar: null }));
 }
 
 export async function reviewSummary(trainerId?: string) {
@@ -115,6 +119,55 @@ export async function reviewSummary(trainerId?: string) {
   let total = 0, sum = 0;
   for (const row of rows) { distribution[row.rating] = row.count; total += row.count; sum += row.rating * row.count; }
   return { count: total, average: total ? Math.round((sum / total) * 10) / 10 : null, distribution };
+}
+
+/** A member's recent effort ratings (newest first), for the trainer's request view. */
+/** All members, for the trainer's "add a member to this class" picker. */
+export async function isOnWaitlist(lessonId: string, memberId: string) {
+  const db = await getDb();
+  const [row] = await db.select({ id: waitlist.id }).from(waitlist).where(and(eq(waitlist.lessonId, lessonId), eq(waitlist.memberId, memberId))).limit(1);
+  return Boolean(row);
+}
+
+/** People waiting for a seat in a class, in the order they joined. */
+export async function listWaitlist(lessonId: string) {
+  const db = await getDb();
+  return db.select({ id: waitlist.id, memberName: users.name, memberPhone: users.phone, createdAt: waitlist.createdAt, notifiedAt: waitlist.notifiedAt })
+    .from(waitlist).innerJoin(users, eq(users.id, waitlist.memberId)).where(eq(waitlist.lessonId, lessonId)).orderBy(asc(waitlist.createdAt));
+}
+
+/** Member directory for trainers: contact details plus attendance and effort at a glance. */
+export async function listMemberOverview(search?: string) {
+  const db = await getDb();
+  const now = new Date();
+  // Typed % and _ are matched literally, not as wildcards.
+  const term = search?.trim().replace(/[\\%_]/g, (char) => `\\${char}`);
+  const digits = term?.replace(/\D/g, "") ?? "";
+  const filter = term ? or(ilike(users.name, `%${term}%`), ilike(users.email, `%${term}%`), ...(digits.length >= 3 ? [ilike(sql`regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g')`, `%${digits}%`)] : [])) : undefined;
+  const attended = sql`${bookings.status} = 'approved' and ${lessons.startsAt} < ${now} and ${bookings.attendance} is distinct from 'no_show'`;
+  return db.select({
+    id: users.id, name: users.name, email: users.email, phone: users.phone, avatarUrl: users.avatarUrl, joinedAt: users.createdAt,
+    completed: sql<number>`count(*) filter (where ${attended})::int`,
+    noShows: sql<number>`count(*) filter (where ${bookings.attendance} = 'no_show')::int`,
+    upcoming: sql<number>`count(*) filter (where ${bookings.status} in ('pending', 'approved') and ${lessons.startsAt} >= ${now} and ${lessons.status} = 'published')::int`,
+    lastLesson: sql<Date | null>`max(${lessons.startsAt}) filter (where ${attended})`.mapWith((value) => value ? new Date(value) : null),
+    averageEffort: sql<number | null>`round(avg(${bookings.effort}) filter (where ${attended})::numeric, 1)::float`,
+  }).from(users)
+    .leftJoin(bookings, eq(bookings.memberId, users.id)).leftJoin(lessons, eq(lessons.id, bookings.lessonId))
+    .where(and(eq(users.role, "member"), filter)).groupBy(users.id).orderBy(asc(users.name));
+}
+
+export async function listMembers() {
+  const db = await getDb();
+  return db.select({ id: users.id, name: users.name, phone: users.phone, email: users.email }).from(users).where(eq(users.role, "member")).orderBy(asc(users.name));
+}
+
+export async function memberEffort(memberId: string, limit = 5) {
+  const db = await getDb();
+  const rows = await db.select({ effort: bookings.effort, startsAt: lessons.startsAt }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+    .where(and(eq(bookings.memberId, memberId), isNotNull(bookings.effort))).orderBy(desc(lessons.startsAt)).limit(limit);
+  const values = rows.map((row) => row.effort!);
+  return { count: values.length, average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null, recent: values };
 }
 
 export async function memberStats(userId: string) {
@@ -147,7 +200,7 @@ export type RequestFilter = "pending" | "approved" | "rejected";
 export async function listTrainerRequests(trainerId: string, status: RequestFilter, limit = 60) {
   const db = await getDb();
   const now = new Date();
-  return db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, createdAt: bookings.createdAt, decidedAt: bookings.decidedAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, capacity: lessons.capacity, taken: takenSeats, memberId: member.id, memberName: member.name, memberAvatar: member.avatarUrl, memberPhone: member.phone, trainerNote: bookings.trainerNote })
+  return db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, createdAt: bookings.createdAt, decidedAt: bookings.decidedAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, capacity: lessons.capacity, taken: takenSeats, memberId: member.id, memberName: member.name, memberAvatar: member.avatarUrl, memberPhone: member.phone, trainerNote: bookings.trainerNote })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).innerJoin(member, eq(member.id, bookings.memberId))
     .where(and(eq(lessons.trainerId, trainerId), eq(bookings.status, status), status === "pending" ? gte(lessons.startsAt, now) : undefined))
     .orderBy(status === "pending" ? asc(lessons.startsAt) : desc(bookings.decidedAt)).limit(limit);
@@ -156,7 +209,7 @@ export async function listTrainerRequests(trainerId: string, status: RequestFilt
 export async function getTrainerRequest(trainerId: string, bookingId: string) {
   if (!isUuid(bookingId)) return null;
   const db = await getDb();
-  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, capacity: lessons.capacity, taken: takenSeats, memberId: member.id, memberName: member.name, memberAvatar: member.avatarUrl, memberEmail: member.email, memberPhone: member.phone, memberSince: member.createdAt })
+  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, capacity: lessons.capacity, taken: takenSeats, memberId: member.id, memberName: member.name, memberAvatar: member.avatarUrl, memberEmail: member.email, memberPhone: member.phone, memberSince: member.createdAt })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).innerJoin(member, eq(member.id, bookings.memberId))
     .where(and(eq(bookings.id, bookingId), eq(lessons.trainerId, trainerId))).limit(1);
   if (!row) return null;
@@ -170,7 +223,7 @@ export async function getTrainerLesson(trainerId: string, lessonId: string) {
   const [lesson] = await listLessonsWhere(and(eq(lessons.id, lessonId), eq(lessons.trainerId, trainerId)));
   if (!lesson) return null;
   const db = await getDb();
-  const roster = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, memberName: member.name, memberAvatar: member.avatarUrl, memberPhone: member.phone })
+  const roster = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, memberName: member.name, memberAvatar: member.avatarUrl, memberPhone: member.phone, memberId: member.id, attendance: bookings.attendance, effort: bookings.effort })
     .from(bookings).innerJoin(member, eq(member.id, bookings.memberId))
     .where(and(eq(bookings.lessonId, lessonId), ne(bookings.status, "rejected"))).orderBy(asc(bookings.createdAt));
   return { lesson, roster };

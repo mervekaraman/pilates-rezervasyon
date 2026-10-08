@@ -92,3 +92,9 @@ export const bookingStatusLabels = { pending: "Onay bekliyor", approved: "Onayla
 export function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase("tr-TR")).join("");
 }
+
+/** RPE (rate of perceived exertion) anchors shown on the 1–10 effort scale. */
+export const effortLabels: Record<number, string> = {
+  1: "Çok hafif", 2: "Hafif", 3: "Orta", 4: "Biraz zorladı", 5: "Zorladı",
+  6: "Epey zorladı", 7: "Çok zorladı", 8: "Çok çok zorladı", 9: "Neredeyse sınırımdaydım", 10: "Sınırımdaydım",
+};

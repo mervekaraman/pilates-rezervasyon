@@ -32,6 +32,12 @@ export async function readSessionUser(): Promise<SessionUser | null> {
   return row ?? null;
 }
 
+/** Hash of the current session token (the sessions.id), if signed in. */
+export async function currentSessionId() {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? hashToken(token) : null;
+}
+
 export async function deleteSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;

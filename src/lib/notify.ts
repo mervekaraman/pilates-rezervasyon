@@ -1,9 +1,10 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db";
-import { bookings, lessons, notifications, users, type NotificationKind } from "@/db/schema";
+import { bookings, lessons, notifications, users, waitlist, type NotificationKind } from "@/db/schema";
 import { formatDayLong, formatTime, lessonLevelLabels, lessonTypeLabels } from "@/lib/format";
+import { bookingIcsFile } from "@/lib/booking-calendar";
 import { sendEmail } from "@/lib/mail";
 import { sendPush } from "@/lib/push";
 import { studio } from "@/lib/studio";
@@ -34,6 +35,8 @@ const lessonDetails = (row: Row): [string, string][] => [
 ];
 
 /** In-app notification, mirrored as a Web Push to the person's devices (if they allowed it). */
+const calendarFor = (row: Row, cancelled = false) => bookingIcsFile({ id: row.booking.id, startsAt: row.lesson.startsAt, durationMin: row.lesson.durationMin, level: row.lesson.level, trainerName: row.trainer.name, cancelled, changedAt: row.booking.updatedAt });
+
 async function inApp(userId: string, kind: NotificationKind, title: string, body: string, href: string, { push = true } = {}) {
   await (await getDb()).insert(notifications).values({ userId, kind, title, body, href });
   // Same tag per page: a newer update (e.g. "onaylandı") replaces the older one on the lock screen.
@@ -54,7 +57,11 @@ export async function notifyBookingRequested(bookingId: string) {
   if (row.trainer.emailNotifications) await sendEmail({
     to: row.trainer.email, subject: `Yeni talep · ${row.member.name} · ${formatTime(row.lesson.startsAt)}`,
     heading: "Yeni bir rezervasyon talebin var.",
-    paragraphs: [`${row.member.name}, ${when(row.lesson)} dersin için yer istedi.`, ...(row.booking.memberNote ? [`Üyenin notu: “${row.booking.memberNote}”`] : [])],
+    paragraphs: [
+      `${row.member.name}, ${when(row.lesson)} dersin için yer istedi.`,
+      ...(row.booking.memberNote ? [`Üyenin notu: “${row.booking.memberNote}”`] : []),
+      ...(row.booking.playlistUrl ? [`Üyenin müzik önerisi (Spotify): ${row.booking.playlistUrl}`] : []),
+    ],
     details: lessonDetails(row).slice(0, 3), action: { label: "Talebi incele", href: `/egitmen-paneli/talepler/${row.booking.id}` },
   });
 }
@@ -76,6 +83,27 @@ export async function notifyBookingDecision(bookingId: string) {
     ],
     details: lessonDetails(row),
     action: approved ? { label: "Rezervasyonu gör", href: `/rezervasyonlar/${row.booking.id}` } : { label: "Ders programına git", href: "/dersler" },
+    calendar: approved ? { ics: calendarFor(row) } : undefined,
+  });
+}
+
+/** The trainer put the member into a class directly; the seat is already confirmed. */
+export async function notifyMemberAdded(bookingId: string) {
+  const row = await loadBooking(bookingId);
+  if (!row || row.booking.status !== "approved") return;
+  await inApp(row.member.id, "approved", "Derse eklendin", `${row.trainer.name} seni ${when(row.lesson)} dersine ekledi.`, `/rezervasyonlar/${row.booking.id}`);
+  if (!row.member.emailNotifications) return;
+  await sendEmail({
+    to: row.member.email,
+    subject: `Derse eklendin · ${formatDayLong(row.lesson.startsAt)} ${formatTime(row.lesson.startsAt)}`,
+    heading: "Yerin ayrıldı, görüşmek üzere.",
+    paragraphs: [
+      `Merhaba ${row.member.name.split(" ")[0]}, ${row.trainer.name} seni ${when(row.lesson)} reformer dersine ekledi. Rezervasyonun onaylı; ayrıca bir şey yapmana gerek yok.`,
+      `Gelemeyeceksen derse ${studio.cancellationHours} saat kalana kadar uygulamadan iptal edebilirsin.`,
+    ],
+    details: lessonDetails(row),
+    action: { label: "Rezervasyonu gör", href: `/rezervasyonlar/${row.booking.id}` },
+    calendar: { ics: calendarFor(row) },
   });
 }
 
@@ -108,8 +136,105 @@ export async function notifyLessonCancelled(lessonId: string, bookingIds: string
       heading: "Dersin iptal edildi.",
       paragraphs: [`${row.trainer.name}, ${when(row.lesson)} dersini iptal etmek zorunda kaldı. Rezervasyonun kaldırıldı.`, "Programdan başka bir saat seçebilirsin."],
       details: lessonDetails(row), action: { label: "Ders programına git", href: "/dersler" },
+      // Removes the event the member may have added from the approval e-mail.
+      calendar: row.booking.decidedAt ? { ics: calendarFor(row, true), cancelled: true } : undefined,
     });
   }
+}
+
+/** Day-before reminder for a confirmed seat (sent once by the daily job). */
+export async function notifyLessonReminder(bookingId: string) {
+  const row = await loadBooking(bookingId);
+  if (!row || row.booking.status !== "approved" || row.lesson.status !== "published") return;
+  await inApp(row.member.id, "info", "Yarın dersin var", `${lessonTitle(row.lesson)} · ${when(row.lesson)}`, `/rezervasyonlar/${row.booking.id}`);
+  if (!row.member.emailNotifications) return;
+  await sendEmail({
+    to: row.member.email,
+    subject: `Yarın ${formatTime(row.lesson.startsAt)} · reformer dersin`,
+    heading: "Yarın görüşüyoruz.",
+    paragraphs: [
+      `Merhaba ${row.member.name.split(" ")[0]}, ${when(row.lesson)} reformer dersin için yerin hazır. Rahat kıyafet ve kaymaz çorabını unutma; birkaç dakika erken gelirsen aletini birlikte ayarlarız.`,
+      `Gelemeyecek misin? Derse ${studio.cancellationHours} saat kalana kadar uygulamadan iptal edebilirsin; yerin bekleyen bir üyeye açılır.`,
+    ],
+    details: lessonDetails(row),
+    action: { label: "Rezervasyonu gör", href: `/rezervasyonlar/${row.booking.id}` },
+  });
+}
+
+const lessonWhen = (startsAt: Date) => `${formatDayLong(startsAt)}, ${formatTime(startsAt)}`;
+
+/**
+ * A seat freed up (cancellation, rejection, bigger class, deleted account): everyone on the waitlist
+ * hears about it at once and the first request wins, guarded by the booking lock. Members told in
+ * the last 30 minutes are skipped so a busy afternoon does not flood them.
+ */
+export async function notifySeatOpened(lessonId: string) {
+  const db = await getDb();
+  const [lesson] = await db.select({ id: lessons.id, startsAt: lessons.startsAt, status: lessons.status, capacity: lessons.capacity,
+    taken: sql<number>`(select count(*)::int from bookings b where b.lesson_id = "lessons"."id" and b.status in ('pending', 'approved'))` })
+    .from(lessons).where(eq(lessons.id, lessonId)).limit(1);
+  if (!lesson || lesson.status !== "published" || lesson.startsAt.getTime() <= Date.now() || lesson.taken >= lesson.capacity) return;
+
+  const now = new Date();
+  const waiting = await db.update(waitlist).set({ notifiedAt: now })
+    .where(and(eq(waitlist.lessonId, lessonId), or(isNull(waitlist.notifiedAt), lt(waitlist.notifiedAt, new Date(now.getTime() - 30 * 60_000)))))
+    .returning({ memberId: waitlist.memberId });
+  if (!waiting.length) return;
+  const people = await db.select({ id: users.id, name: users.name, email: users.email, emailNotifications: users.emailNotifications }).from(users).where(inArray(users.id, waiting.map((row) => row.memberId)));
+  const when = lessonWhen(lesson.startsAt);
+  for (const person of people) {
+    await inApp(person.id, "info", "Beklediğin derste yer açıldı", `${when} · İlk talep gönderen yeri alır.`, `/dersler/${lesson.id}`);
+    if (person.emailNotifications) await sendEmail({
+      to: person.email, subject: `Yer açıldı · ${when}`,
+      heading: "Beklediğin derste yer açıldı.",
+      paragraphs: [`Merhaba ${person.name.split(" ")[0]}, bekleme listesinde olduğun ${when} reformer dersinde yer açıldı. Yer, ilk talep gönderen üyeye ayrılır.`],
+      action: { label: "Hemen talep gönder", href: `/dersler/${lesson.id}` },
+    });
+  }
+}
+
+/** Level or duration of a booked class changed: tell everyone holding a seat. */
+export async function notifyLessonChanged(lessonId: string, changes: string[]) {
+  if (!changes.length) return;
+  const db = await getDb();
+  const rows = await db.select({ memberId: bookings.memberId, bookingId: bookings.id, startsAt: lessons.startsAt }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+    .where(and(eq(bookings.lessonId, lessonId), inArray(bookings.status, ["pending", "approved"])));
+  for (const row of rows) {
+    await inApp(row.memberId, "info", "Dersinde değişiklik var", `${lessonWhen(row.startsAt)} · ${changes.join(", ")}`, `/rezervasyonlar/${row.bookingId}`);
+  }
+}
+
+/** A member deleted their account: the trainer learns that the seat is free again. */
+export async function notifyMemberLeft(seat: { trainerId: string; memberName: string; lessonId: string; startsAt: Date }) {
+  const db = await getDb();
+  const [trainerRow] = await db.select({ email: users.email, emailNotifications: users.emailNotifications }).from(users).where(eq(users.id, seat.trainerId)).limit(1);
+  if (!trainerRow) return;
+  const when = lessonWhen(seat.startsAt);
+  await inApp(seat.trainerId, "cancelled", "Bir üye hesabını sildi", `${seat.memberName} · ${when} — yer boşaldı`, `/egitmen-paneli/dersler/${seat.lessonId}`);
+  if (trainerRow.emailNotifications) await sendEmail({
+    to: trainerRow.email, subject: `Yer boşaldı · ${when}`,
+    heading: "Bir üye hesabını sildi.",
+    paragraphs: [`${seat.memberName} hesabını kapattı; ${when} dersindeki yeri boşaldı. Bekleme listesindekilere haber verildi.`],
+    action: { label: "Ders listesini gör", href: `/egitmen-paneli/dersler/${seat.lessonId}` },
+  });
+}
+
+export async function sendEmailChangeLink(person: { name: string; newEmail: string }, link: string) {
+  await sendEmail({
+    to: person.newEmail, subject: "E-posta adresini onayla",
+    heading: "Yeni e-posta adresini onayla.",
+    paragraphs: [`Merhaba ${person.name.split(" ")[0]}, ${studio.name} hesabının e-posta adresini bu adresle değiştirmek istedin. Onaylamak için aşağıdaki bağlantıyı aç; bağlantı 1 saat geçerli.`, "Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; hesabın değişmez."],
+    action: { label: "E-postamı onayla", href: link },
+    sensitive: true,
+  });
+}
+
+export async function sendEmailChangedNotice(person: { name: string; oldEmail: string; newEmail: string }) {
+  await sendEmail({
+    to: person.oldEmail, subject: "Hesabının e-posta adresi değişti",
+    heading: "E-posta adresin değişti.",
+    paragraphs: [`Merhaba ${person.name.split(" ")[0]}, ${studio.name} hesabının giriş e-postası ${person.newEmail} olarak değiştirildi.`, "Bu değişikliği sen yapmadıysan hemen stüdyoyla iletişime geç."],
+  });
 }
 
 export async function sendWelcomeEmail(user: { name: string; email: string; role: "member" | "trainer" }) {
@@ -129,5 +254,6 @@ export async function sendPasswordResetEmail(user: { name: string; email: string
     heading: "Şifreni yenile.",
     paragraphs: [`Merhaba ${user.name.split(" ")[0]}, şifreni yenilemek için aşağıdaki bağlantıyı kullan. Bağlantı 1 saat geçerli ve yalnızca bir kez kullanılabilir.`, "Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; şifren değişmez."],
     action: { label: "Yeni şifre belirle", href: link },
+    sensitive: true,
   });
 }

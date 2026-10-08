@@ -2,6 +2,7 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { getDb } from "@/db";
 import { emailOutbox } from "@/db/schema";
+import { maskEmail } from "@/lib/privacy";
 import { studio } from "@/lib/studio";
 
 export const appUrl = () => (process.env.APP_URL ?? "http://localhost:3040").replace(/\/$/, "");
@@ -23,27 +24,52 @@ function getTransporter(): Transporter | null {
 
 export const isMailConfigured = () => Boolean(process.env.SMTP_HOST);
 
-type Email = { to: string; subject: string; heading: string; paragraphs: string[]; details?: [string, string][]; action?: { label: string; href: string } };
+type Email = {
+  to: string; subject: string; heading: string; paragraphs: string[]; details?: [string, string][]; action?: { label: string; href: string };
+  /** Calendar event (.ics) — mail apps show it as an "add to calendar" card, like airline bookings. */
+  calendar?: { ics: string; cancelled?: boolean };
+  /** The action link is a secret (password reset, e-mail change): never keep a working copy once sent. */
+  sensitive?: boolean;
+};
+
+
 
 /** Sends through SMTP when configured; otherwise the message is only recorded (visible at /gelistirici/e-postalar in development). */
 export async function sendEmail(email: Email) {
   const { html, text } = render(email);
   let status: "sent" | "logged" | "failed" = "logged";
   let error: string | null = null;
-  const transport = getTransporter();
+  // Reserved test domains (demo accounts like duygu@demo.smeda.test) can never receive mail; sending
+  // would only bounce back to the studio inbox and hurt its reputation, so they are recorded instead.
+  const undeliverable = /\.(test|example|invalid|localhost|local)$/i.test(email.to.trim());
+  const transport = undeliverable ? null : getTransporter();
   if (transport) {
     try {
-      await transport.sendMail({ from: process.env.MAIL_FROM ?? `${studio.name} <no-reply@localhost>`, to: email.to, subject: email.subject, html, text });
+      await transport.sendMail({
+        from: process.env.MAIL_FROM ?? `${studio.name} <no-reply@localhost>`, to: email.to, subject: email.subject, html, text,
+        icalEvent: email.calendar ? { filename: "smeda-pilates-ders.ics", method: email.calendar.cancelled ? "CANCEL" : "PUBLISH", content: email.calendar.ics } : undefined,
+      });
       status = "sent";
     } catch (cause) {
       status = "failed";
       error = cause instanceof Error ? cause.message : String(cause);
-      console.error(`[e-posta] ${email.to} adresine gönderilemedi: ${error}`);
+      console.error(`[e-posta] ${maskEmail(email.to)} adresine gönderilemedi: ${error}`);
     }
   } else {
-    console.info(`[e-posta] SMTP ayarlı değil, kaydedildi → ${email.to} · ${email.subject}`);
+    console.info(`[e-posta] ${undeliverable ? "Demo adresi" : "SMTP ayarlı değil"}, kaydedildi → ${maskEmail(email.to)}`);
   }
-  await (await getDb()).insert(emailOutbox).values({ to: email.to, subject: email.subject, html, text, status, error });
+  // The stored copy keeps a working secret link only for local testing without SMTP; once a message
+  // has really gone out (or in production) the link is blanked so a database leak cannot reuse it.
+  const keepLink = !email.sensitive || (status !== "sent" && process.env.NODE_ENV !== "production");
+  const stored = keepLink ? { html, text } : redact({ html, text }, email.action?.href);
+  await (await getDb()).insert(emailOutbox).values({ to: email.to, subject: email.subject, html: stored.html, text: stored.text, status, error });
+}
+
+function redact(copy: { html: string; text: string }, href: string | undefined) {
+  if (!href) return copy;
+  const absolute = href.startsWith("http") ? href : `${appUrl()}${href}`;
+  const hidden = "[gizli bağlantı]";
+  return { html: copy.html.split(escape(absolute)).join(hidden).split(absolute).join(hidden), text: copy.text.split(absolute).join(hidden) };
 }
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
