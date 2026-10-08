@@ -5,6 +5,9 @@ import { addDays, atStudioTime, dayKey, formatDayLong, isDayKey, isSunday, openD
 import { formatPhone, normalizePhone } from "../src/lib/forms.ts";
 import { lessonDefaults, lessonStartTimes } from "../src/lib/studio.ts";
 import { whatsappLink, whatsappMessage } from "../src/lib/whatsapp.ts";
+import { bookingIcs, googleCalendarLink } from "../src/lib/calendar.ts";
+import { parseSpotifyLink } from "../src/lib/spotify.ts";
+import { maskEmail, publicName, safeNext } from "../src/lib/privacy.ts";
 
 test("şifreler tuzlanarak hash'lenir ve yalnızca doğru şifre eşleşir", async () => {
   const hash = await hashPassword("reformer-2026");
@@ -61,4 +64,47 @@ test("WhatsApp bağlantısı üyenin numarasına hazır mesajla açılır", () =
   const rejected = whatsappMessage({ topic: "rejected", memberName: "Selin", trainerName: "Ece Sarı", startsAt: new Date("2026-10-06T15:00:00Z"), trainerNote: "Bu saat dolu.", siteUrl: "https://smeda.test" });
   assert.match(rejected, /Notum: Bu saat dolu\./);
   assert.match(rejected, /https:\/\/smeda\.test\/dersler/);
+});
+
+test("takvime ekle: .ics dosyası, iptal güncellemesi ve Google bağlantısı", () => {
+  const event = { uid: "booking-1@smeda-pilates", startsAt: new Date("2026-10-09T15:00:00Z"), endsAt: new Date("2026-10-09T15:50:00Z"), title: "Reformer Pilates · Smeda Pilates", description: "Orta seviye, Eğitmen: Duygu; iptal 12 saat", location: "Smeda Pilates", url: "https://smeda.test/rezervasyonlar/1", sequence: 3 };
+  const ics = bookingIcs(event, new Date("2026-10-08T10:00:00Z"));
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, /METHOD:PUBLISH\r\n/);
+  assert.match(ics, /DTSTART:20261009T150000Z\r\n/);
+  assert.match(ics, /DTEND:20261009T155000Z\r\n/);
+  assert.match(ics, /DESCRIPTION:Orta seviye\\, Eğitmen: Duygu\\; iptal 12 saat/);
+  assert.match(ics, /TRIGGER:-PT1H/);
+  for (const line of ics.split("\r\n")) assert.ok(new TextEncoder().encode(line).length <= 75, `uzun satır: ${line}`);
+  const cancel = bookingIcs({ ...event, cancelled: true, sequence: 4 });
+  assert.match(cancel, /METHOD:CANCEL/);
+  assert.match(cancel, /STATUS:CANCELLED/);
+  assert.match(cancel, /UID:booking-1@smeda-pilates/);
+  const google = new URL(googleCalendarLink(event));
+  assert.equal(google.searchParams.get("dates"), "20261009T150000Z/20261009T155000Z");
+  assert.equal(google.searchParams.get("action"), "TEMPLATE");
+});
+
+test("üyenin Spotify listesi: yalnızca Spotify bağlantıları, izleme parametresi atılır", () => {
+  const id = "37i9dQZF1DXcBWIGoYBM5M";
+  assert.deepEqual(parseSpotifyLink(`https://open.spotify.com/playlist/${id}?si=abc123`), { url: `https://open.spotify.com/playlist/${id}`, embedUrl: `https://open.spotify.com/embed/playlist/${id}`, kind: "playlist" });
+  assert.equal(parseSpotifyLink(`https://open.spotify.com/intl-tr/album/${id}`)?.url, `https://open.spotify.com/album/${id}`);
+  assert.equal(parseSpotifyLink(`spotify:playlist:${id}`)?.embedUrl, `https://open.spotify.com/embed/playlist/${id}`);
+  assert.equal(parseSpotifyLink("https://spotify.link/AbC123xyz")?.kind, "link");
+  assert.equal(parseSpotifyLink("https://evil.example/playlist/x"), null);
+  assert.equal(parseSpotifyLink(`https://open.spotify.com.evil.com/playlist/${id}`), null);
+  assert.equal(parseSpotifyLink("javascript:alert(1)"), null);
+  assert.equal(parseSpotifyLink(""), null);
+});
+
+test("gizlilik: herkese açık adlar kısaltılır, kayıtlarda e-posta maskelenir, yönlendirme siteden çıkamaz", () => {
+  assert.equal(publicName("Elif Yılmaz"), "Elif Y.");
+  assert.equal(publicName("Ayşe Nur İnce"), "Ayşe İ.");
+  assert.equal(publicName("Derya"), "Derya");
+  assert.equal(maskEmail("ornek.uye@gmail.com"), "o***@gmail.com");
+  assert.equal(safeNext("/dersler/abc?gun=2026-10-09"), "/dersler/abc?gun=2026-10-09");
+  assert.equal(safeNext("/rezervasyonlar#efor"), "/rezervasyonlar#efor");
+  for (const attack of ["//evil.com", "/\\evil.com", "/\t/evil.com", "/\n/evil.com", "https://evil.com", "javascript:alert(1)", "", null, undefined]) {
+    assert.equal(safeNext(attack), null, `reddedilmeli: ${JSON.stringify(attack)}`);
+  }
 });

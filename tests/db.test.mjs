@@ -41,3 +41,51 @@ test("arka arkaya dersler ve iptal edilen dersin saati serbesttir", async () => 
   await assert.rejects(addLesson(db, trainerId, "2026-10-07T12:00:00+03:00", "2026-10-07T11:00:00+03:00"), { code: "23514" }, "bitiş başlangıçtan önce olamaz");
   await db.close();
 });
+
+test("efor puanı yalnızca 1–10 arasında olabilir; katılım geldi/gelmedi", async () => {
+  const { db, trainerId } = await migratedDb();
+  const { rows: [member] } = await db.query(`insert into users (name, email, password_hash, role) values ('Üye', 'u@test', 'x', 'member') returning id`);
+  const { rows: [lesson] } = await db.query(`insert into lessons (trainer_id, starts_at, ends_at, duration_min, capacity) values ($1, '2026-10-07T10:00:00+03:00', '2026-10-07T10:50:00+03:00', 50, 4) returning id`, [trainerId]);
+  const { rows: [booking] } = await db.query(`insert into bookings (lesson_id, member_id, status) values ($1, $2, 'approved') returning id`, [lesson.id, member.id]);
+  await db.query(`update bookings set effort = 7, attendance = 'attended' where id = $1`, [booking.id]);
+  await assert.rejects(db.query(`update bookings set effort = 11 where id = $1`, [booking.id]), { code: "23514" });
+  await assert.rejects(db.query(`update bookings set effort = 0 where id = $1`, [booking.id]), { code: "23514" });
+  await assert.rejects(db.query(`update bookings set attendance = 'late' where id = $1`, [booking.id]), { code: "22P02" });
+  await db.close();
+});
+
+test("bekleme listesinde bir üye bir derste yalnızca bir kez yer alır", async () => {
+  const { db, trainerId } = await migratedDb();
+  const { rows: [member] } = await db.query(`insert into users (name, email, password_hash, role) values ('Üye', 'w@test', 'x', 'member') returning id`);
+  const { rows: [lesson] } = await db.query(`insert into lessons (trainer_id, starts_at, ends_at, duration_min, capacity) values ($1, '2026-10-07T10:00:00+03:00', '2026-10-07T10:50:00+03:00', 50, 4) returning id`, [trainerId]);
+  await db.query(`insert into waitlist (lesson_id, member_id) values ($1, $2)`, [lesson.id, member.id]);
+  await assert.rejects(db.query(`insert into waitlist (lesson_id, member_id) values ($1, $2)`, [lesson.id, member.id]), { code: "23505" });
+  await db.query(`delete from users where id = $1`, [member.id]);
+  const { rows } = await db.query(`select count(*)::int as n from waitlist`);
+  assert.equal(rows[0].n, 0, "hesap silinince bekleme kaydı da silinmeli");
+  await db.close();
+});
+
+test("giriş deneme sayacı tek komutla artar ve süre dolunca sıfırlanır", async () => {
+  const { db } = await migratedDb();
+  // Same statement shape as src/lib/rate-limit.ts.
+  const hit = async (resetAt) => (await db.query(
+    `insert into rate_limits (key, count, reset_at) values ('k', 1, $1) on conflict (key) do update set
+       count = case when rate_limits.reset_at < now() then 1 else rate_limits.count + 1 end,
+       reset_at = case when rate_limits.reset_at < now() then $1::timestamptz else rate_limits.reset_at end returning count`, [resetAt])).rows[0].count;
+  const later = new Date(Date.now() + 60_000).toISOString();
+  const counts = await Promise.all(Array.from({ length: 5 }, () => hit(later)));
+  assert.deepEqual([...counts].sort(), [1, 2, 3, 4, 5]);
+  await db.query(`update rate_limits set reset_at = now() - interval '1 minute'`);
+  assert.equal(await hit(later), 1, "süresi dolan pencere yeniden başlamalı");
+  await db.close();
+});
+
+test("Supabase veri API'sine karşı bütün tablolarda satır düzeyi güvenlik (RLS) açık", async () => {
+  const { db } = await migratedDb();
+  const { rows } = await db.query(`select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r'`);
+  assert.ok(rows.length >= 12);
+  const open = rows.filter((row) => !row.relrowsecurity).map((row) => row.relname);
+  assert.deepEqual(open, [], `RLS kapalı tablolar: ${open.join(", ")} — yeni tabloya migration'da ENABLE ROW LEVEL SECURITY ekleyin`);
+  await db.close();
+});

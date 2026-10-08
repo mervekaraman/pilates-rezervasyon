@@ -10,7 +10,7 @@ const routes = [
   "dersler", "dersler/[id]", "hakkimizda", "egitmen/[id]", "yorumlar", "yardim", "gizlilik",
   "rezervasyon/basarili", "rezervasyonlar", "rezervasyonlar/[id]", "yorum-yaz", "profil", "profil/ayarlar", "bildirimler",
   "egitmen-paneli", "egitmen-paneli/yeni-ders", "egitmen-paneli/talepler", "egitmen-paneli/talepler/[id]",
-  "egitmen-paneli/takvim", "egitmen-paneli/dersler/[id]", "gelistirici/e-postalar",
+  "egitmen-paneli/takvim", "egitmen-paneli/dersler/[id]", "egitmen-paneli/dersler/[id]/duzenle", "egitmen-paneli/uyeler", "gelistirici/e-postalar", "eposta-dogrula",
 ];
 
 test("tek stüdyo (Smeda Pilates) sayfalarının route dosyaları bulunur", () => {
@@ -26,13 +26,13 @@ test("çok stüdyolu eski ekranlar kaldırıldı ve yeni sayfalara yönlendirili
 });
 
 test("korumalı sayfalar veri katmanında oturum ve rol kontrolü yapar", () => {
-  const guarded = { "rezervasyonlar": "member", "profil": undefined, "bildirimler": undefined, "egitmen-paneli": "trainer", "egitmen-paneli/talepler": "trainer", "egitmen-paneli/yeni-ders": "trainer" };
+  const guarded = { "rezervasyonlar": "member", "profil": undefined, "bildirimler": undefined, "egitmen-paneli": "trainer", "egitmen-paneli/talepler": "trainer", "egitmen-paneli/yeni-ders": "trainer", "egitmen-paneli/uyeler": "trainer", "egitmen-paneli/dersler/[id]/duzenle": "trainer" };
   for (const [route, role] of Object.entries(guarded)) {
     const page = readFileSync(join(app, route, "page.tsx"), "utf8");
     assert.match(page, /requireUser\(/, `/${route} requireUser çağırmıyor`);
     if (role) assert.match(page, new RegExp(`role: "${role}"`), `/${route} ${role} rolünü istemiyor`);
   }
-  for (const file of ["auth.ts", "bookings.ts", "lessons.ts", "account.ts", "push.ts"]) {
+  for (const file of ["auth.ts", "bookings.ts", "lessons.ts", "account.ts", "push.ts", "attendance.ts"]) {
     const actions = readFileSync(join(app, "actions", file), "utf8");
     assert.match(actions, /^"use server";/);
   }
@@ -64,4 +64,14 @@ test("telefon bildirimleri: service worker, manifest ve yalnızca bilinen push s
   assert.match(actions, /fcm\\.googleapis\\.com/, "uç noktalar push servisleriyle sınırlı olmalı (SSRF)");
   const config = readFileSync(new URL("next.config.ts", root), "utf8");
   assert.match(config, /source: "\/sw\.js"/, "service worker önbelleğe alınmamalı");
+});
+
+test("günlük görev yalnızca gizli anahtarla çalışır ve Vercel'de her gün planlıdır", () => {
+  const route = readFileSync(join(app, "api/cron/gunluk/route.ts"), "utf8");
+  assert.match(route, /CRON_SECRET/);
+  assert.match(route, /timingSafeEqual/);
+  const vercel = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  assert.deepEqual(vercel.crons, [{ path: "/api/cron/gunluk", schedule: "0 14 * * *" }]);
+  const backup = readFileSync(new URL("../.github/workflows/yedek.yml", import.meta.url), "utf8");
+  assert.match(backup, /--symmetric --cipher-algo AES256/, "yedek şifrelenmeden yüklenmemeli");
 });
