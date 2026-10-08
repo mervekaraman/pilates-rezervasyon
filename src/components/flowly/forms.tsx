@@ -83,7 +83,7 @@ export function SignupForm({ next }: { next?: string }) {
 
 export function ResetRequestForm() {
   const [state, action] = useActionState(requestPasswordReset, undefined);
-  if (state?.ok) return <div className="auth-form-v4"><Notice tone="success">{state.message}</Notice><Link href="/giris" className="center-link">Girişe dön</Link></div>;
+  if (state?.ok) return <div className="auth-form-v4"><Notice tone="success">{state.message}</Notice></div>;
   return <form action={action} className="auth-form-v4" noValidate>
     <FormMessage state={state}/>
     <Field label="E-posta" name="email" type="email" icon="mail" autoComplete="email" placeholder="ornek@eposta.com" defaultValue={state?.values?.email} error={state?.fieldErrors?.email}/>
