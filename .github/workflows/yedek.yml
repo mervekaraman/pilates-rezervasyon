@@ -1,0 +1,41 @@
+name: Haftalık veritabanı yedeği
+
+# Every Monday 06:00 (Istanbul) plus a manual "Run workflow" button. The dump is encrypted with
+# BACKUP_PASSPHRASE before upload, so the artifact is unreadable without it even on a public repo.
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Yedeği al ve şifrele
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::notice::BACKUP_DATABASE_URL ve BACKUP_PASSPHRASE tanımlı değil; yedek atlandı."
+            exit 0
+          fi
+          set -euo pipefail
+          docker run --rm -e DATABASE_URL postgres:17 sh -c 'pg_dump --no-owner --no-privileges --format=custom "$DATABASE_URL"' > yedek.dump
+          test -s yedek.dump
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 \
+            --output "smeda-yedek-$(date -u +%F).dump.gpg" yedek.dump
+          rm yedek.dump
+
+      - name: Yedeği sakla (30 gün)
+        if: hashFiles('*.dump.gpg') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: smeda-yedek-${{ github.run_number }}
+          path: "*.dump.gpg"
+          retention-days: 30
+          if-no-files-found: ignore

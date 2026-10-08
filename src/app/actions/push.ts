@@ -4,6 +4,7 @@ import { and, asc, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
+import { currentSessionId } from "@/lib/auth/session";
 import { requireUser } from "@/lib/dal";
 import { sendPush } from "@/lib/push";
 
@@ -30,9 +31,10 @@ export async function savePushSubscription(input: unknown): Promise<{ ok: boolea
   const { endpoint, keys } = parsed.data;
 
   const db = await getDb();
-  // A device that signs in with another account now belongs to that account.
-  await db.insert(pushSubscriptions).values({ userId: user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth })
-    .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { userId: user.id, p256dh: keys.p256dh, auth: keys.auth } });
+  const sessionId = await currentSessionId();
+  // A device that signs in with another account now belongs to that account (and that sign-in).
+  await db.insert(pushSubscriptions).values({ userId: user.id, sessionId, endpoint, p256dh: keys.p256dh, auth: keys.auth })
+    .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { userId: user.id, sessionId, p256dh: keys.p256dh, auth: keys.auth } });
 
   const devices = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.userId, user.id)).orderBy(asc(pushSubscriptions.createdAt));
   if (devices.length > MAX_DEVICES) {

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gt, inArray, lt } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
@@ -8,9 +8,9 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { bookings, lessonLevel, lessons } from "@/db/schema";
 import { requireUser } from "@/lib/dal";
-import { addDays, atStudioTime, dayKey, formatDayLong, formatTime, isDayKey, isSunday, todayKey } from "@/lib/format";
+import { addDays, atStudioTime, dayKey, formatDayLong, formatTime, isDayKey, isSunday, lessonLevelLabels, todayKey } from "@/lib/format";
 import { fieldErrors, keepValues, type FormState } from "@/lib/forms";
-import { notifyLessonCancelled } from "@/lib/notify";
+import { notifyLessonCancelled, notifyLessonChanged, notifySeatOpened } from "@/lib/notify";
 import { isUuid } from "@/lib/queries";
 import { lessonStartTimes } from "@/lib/studio";
 
@@ -86,4 +86,58 @@ export async function cancelLesson(_: FormState, formData: FormData): Promise<Fo
 
   after(() => notifyLessonCancelled(lessonId, result.bookingIds));
   redirect(`/egitmen-paneli/takvim?gun=${dayKey(result.startsAt)}&iptal=${result.bookingIds.length}`);
+}
+
+const editSchema = lessonSchema.pick({ durationMin: true, capacity: true, level: true, note: true }).extend({ lessonId: z.uuid() });
+
+class EditError extends Error {
+  constructor(message: string, readonly field?: string) { super(message); }
+}
+
+/** Trainer changes capacity, level, duration or note of an upcoming class (day and time stay). */
+export async function updateLesson(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ role: "trainer" });
+  const values = keepValues(formData, ["durationMin", "capacity", "level", "note"]);
+  const parsed = editSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
+  const data = parsed.data;
+
+  const db = await getDb();
+  let result: { changes: string[]; moreSeats: boolean };
+  try {
+    result = await db.transaction(async (tx) => {
+      // Lock the class: a booking arriving meanwhile waits, so capacity can never drop below the seats taken.
+      const [lesson] = await tx.select().from(lessons).where(and(eq(lessons.id, data.lessonId), eq(lessons.trainerId, user.id))).for("update");
+      if (!lesson) throw new EditError("Ders bulunamadı.");
+      if (lesson.status !== "published") throw new EditError("İptal edilmiş bir ders düzenlenemez.");
+      if (lesson.startsAt.getTime() <= Date.now()) throw new EditError("Başlamış bir ders düzenlenemez.");
+
+      const [{ taken }] = await tx.select({ taken: sql<number>`count(*)::int` }).from(bookings).where(and(eq(bookings.lessonId, lesson.id), inArray(bookings.status, ["pending", "approved"])));
+      if (data.capacity < taken) throw new EditError(`Bu derste ${taken} kişi kayıtlı; kontenjan en az ${taken} olmalı.`, "capacity");
+
+      const endsAt = new Date(lesson.startsAt.getTime() + data.durationMin * 60_000);
+      if (data.durationMin !== lesson.durationMin) {
+        const [clash] = await tx.select({ startsAt: lessons.startsAt }).from(lessons)
+          .where(and(eq(lessons.status, "published"), ne(lessons.id, lesson.id), lt(lessons.startsAt, endsAt), gt(lessons.endsAt, lesson.startsAt))).limit(1);
+        if (clash) throw new EditError(`Süre uzayınca ${formatTime(clash.startsAt)} dersiyle çakışıyor. Daha kısa bir süre seç.`, "durationMin");
+      }
+
+      await tx.update(lessons).set({ durationMin: data.durationMin, endsAt, capacity: data.capacity, level: data.level, note: data.note }).where(eq(lessons.id, lesson.id));
+      const changes = [
+        ...(data.level !== lesson.level ? [`seviye: ${lessonLevelLabels[data.level]}`] : []),
+        ...(data.durationMin !== lesson.durationMin ? [`süre: ${data.durationMin} dk`] : []),
+      ];
+      return { changes, moreSeats: data.capacity > lesson.capacity };
+    });
+  } catch (error) {
+    if (error instanceof EditError) return error.field ? { fieldErrors: { [error.field]: error.message }, values } : { error: error.message, values };
+    if (isOverlapError(error)) return { fieldErrors: { durationMin: "Bu süreyle stüdyodaki başka bir dersle çakışıyor." }, values };
+    throw error;
+  }
+
+  after(async () => {
+    await notifyLessonChanged(data.lessonId, result.changes);
+    if (result.moreSeats) await notifySeatOpened(data.lessonId);
+  });
+  redirect(`/egitmen-paneli/dersler/${data.lessonId}?duzenlendi=1`);
 }

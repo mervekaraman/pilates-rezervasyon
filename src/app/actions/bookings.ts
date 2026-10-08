@@ -6,22 +6,33 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { bookings, lessons } from "@/db/schema";
+import { bookings, lessons, users, waitlist } from "@/db/schema";
 import { requireUser } from "@/lib/dal";
-import { fieldErrors, type FormState } from "@/lib/forms";
-import { notifyBookingCancelled, notifyBookingDecision, notifyBookingRequested } from "@/lib/notify";
+import { fieldErrors, keepValues, type FormState } from "@/lib/forms";
+import { parseSpotifyLink } from "@/lib/spotify";
+import { notifyBookingCancelled, notifyBookingDecision, notifyBookingRequested, notifyMemberAdded, notifySeatOpened } from "@/lib/notify";
 import { isUuid } from "@/lib/queries";
 import { studio } from "@/lib/studio";
 
 const note = z.string().trim().max(300, { error: "Not en fazla 300 karakter olabilir." }).optional().transform((value) => value || null);
+const playlist = z.string().trim().max(300).optional().transform((value, ctx) => {
+  if (!value) return null;
+  const link = parseSpotifyLink(value);
+  if (!link) ctx.addIssue({ code: "custom", message: "Bu bir Spotify çalma listesi linki gibi görünmüyor. Spotify'da listeyi açıp Paylaş › Bağlantıyı kopyala ile al." });
+  return link?.url ?? null;
+});
 
 class BookingError extends Error {}
 
 export async function requestBooking(_: FormState, formData: FormData): Promise<FormState> {
   const lessonId = String(formData.get("lessonId") ?? "");
   const user = await requireUser({ role: "member", next: `/dersler/${lessonId}` });
-  const parsed = z.object({ lessonId: z.uuid(), memberNote: note }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+  const parsed = z.object({ lessonId: z.uuid(), memberNote: note, playlistUrl: playlist, noteConsent: z.literal("on").optional() })
+    // A note may carry health data (KVKK md. 6): it is only stored with the member's explicit consent.
+    .refine((data) => !data.memberNote || data.noteConsent === "on", { path: ["noteConsent"], error: "Notunu eğitmenine iletebilmemiz için açık rıza kutusunu işaretle ya da notu boş bırak." })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values: keepValues(formData, ["memberNote", "playlistUrl"]) };
+  const noteConsentAt = parsed.data.memberNote ? new Date() : null;
 
   const db = await getDb();
   let bookingId: string;
@@ -38,11 +49,13 @@ export async function requestBooking(_: FormState, formData: FormData): Promise<
       const [{ taken }] = await tx.select({ taken: sql<number>`count(*)::int` }).from(bookings).where(and(eq(bookings.lessonId, lesson.id), inArray(bookings.status, ["pending", "approved"])));
       if (taken >= lesson.capacity) throw new BookingError("Bu derste yer kalmadı. Programdan başka bir saat seçebilirsin.");
 
+      // A request replaces waiting for this class.
+      await tx.delete(waitlist).where(and(eq(waitlist.lessonId, lesson.id), eq(waitlist.memberId, user.id)));
       if (existing) {
-        await tx.update(bookings).set({ status: "pending", memberNote: parsed.data.memberNote, trainerNote: null, decidedAt: null, updatedAt: new Date() }).where(eq(bookings.id, existing.id));
+        await tx.update(bookings).set({ status: "pending", memberNote: parsed.data.memberNote, memberNoteConsentAt: noteConsentAt, playlistUrl: parsed.data.playlistUrl, trainerNote: null, decidedAt: null, updatedAt: new Date() }).where(eq(bookings.id, existing.id));
         return existing.id;
       }
-      const [created] = await tx.insert(bookings).values({ lessonId: lesson.id, memberId: user.id, memberNote: parsed.data.memberNote }).returning({ id: bookings.id });
+      const [created] = await tx.insert(bookings).values({ lessonId: lesson.id, memberId: user.id, memberNote: parsed.data.memberNote, memberNoteConsentAt: noteConsentAt, playlistUrl: parsed.data.playlistUrl }).returning({ id: bookings.id });
       return created.id;
     });
   } catch (error) {
@@ -60,7 +73,7 @@ export async function cancelBooking(_: FormState, formData: FormData): Promise<F
   if (!isUuid(bookingId)) return { error: "Rezervasyon bulunamadı." };
 
   const db = await getDb();
-  const [row] = await db.select({ status: bookings.status, startsAt: lessons.startsAt }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+  const [row] = await db.select({ status: bookings.status, startsAt: lessons.startsAt, lessonId: lessons.id }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
     .where(and(eq(bookings.id, bookingId), eq(bookings.memberId, user.id))).limit(1);
   if (!row) return { error: "Rezervasyon bulunamadı." };
   if (row.status !== "pending" && row.status !== "approved") return { error: "Bu rezervasyon zaten aktif değil." };
@@ -68,8 +81,14 @@ export async function cancelBooking(_: FormState, formData: FormData): Promise<F
   if (hoursLeft <= 0) return { error: "Başlamış bir ders iptal edilemez." };
   if (row.status === "approved" && hoursLeft < studio.cancellationHours) return { error: `Derse ${studio.cancellationHours} saatten az kaldığı için çevrimiçi iptal kapandı. Lütfen stüdyoyla iletişime geç.` };
 
-  await db.update(bookings).set({ status: "cancelled", updatedAt: new Date() }).where(eq(bookings.id, bookingId));
-  after(() => notifyBookingCancelled(bookingId));
+  // Only if nothing changed since the checks above (e.g. the trainer deciding at the same moment).
+  const changed = await db.update(bookings).set({ status: "cancelled", updatedAt: new Date() })
+    .where(and(eq(bookings.id, bookingId), eq(bookings.status, row.status))).returning({ id: bookings.id });
+  if (!changed.length) return { error: "Rezervasyonun az önce güncellendi. Sayfayı yenileyip tekrar dene." };
+  after(async () => {
+    await notifyBookingCancelled(bookingId);
+    await notifySeatOpened(row.lessonId);
+  });
   refresh();
   return { ok: true, message: "Rezervasyonun iptal edildi." };
 }
@@ -80,15 +99,114 @@ export async function decideBooking(_: FormState, formData: FormData): Promise<F
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
   const db = await getDb();
-  const [row] = await db.select({ status: bookings.status, startsAt: lessons.startsAt }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+  const [row] = await db.select({ status: bookings.status, startsAt: lessons.startsAt, lessonId: lessons.id }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
     .where(and(eq(bookings.id, parsed.data.bookingId), eq(lessons.trainerId, user.id))).limit(1);
   if (!row) return { error: "Talep bulunamadı." };
   if (row.status !== "pending") return { error: "Bu talep için daha önce karar verilmiş." };
   if (row.startsAt.getTime() <= Date.now()) return { error: "Ders başladığı için talep artık değiştirilemez." };
 
-  await db.update(bookings).set({ status: parsed.data.decision === "approve" ? "approved" : "rejected", trainerNote: parsed.data.trainerNote, decidedAt: new Date(), updatedAt: new Date() }).where(eq(bookings.id, parsed.data.bookingId));
-  after(() => notifyBookingDecision(parsed.data.bookingId));
+  // Still pending? The member may have withdrawn the request a moment ago.
+  const decided = await db.update(bookings).set({ status: parsed.data.decision === "approve" ? "approved" : "rejected", trainerNote: parsed.data.trainerNote, decidedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.status, "pending"))).returning({ id: bookings.id });
+  if (!decided.length) return { error: "Bu talep az önce değişti (üye geri çekmiş olabilir). Sayfayı yenile." };
+  after(async () => {
+    await notifyBookingDecision(parsed.data.bookingId);
+    if (parsed.data.decision === "reject") await notifySeatOpened(row.lessonId);
+  });
   if (parsed.data.back === "detail") redirect("/egitmen-paneli/talepler");
   refresh();
   return { ok: true };
+}
+
+/** Trainer books a member into one of their own classes; the seat is confirmed straight away. */
+export async function addMemberToLesson(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ role: "trainer" });
+  const parsed = z.object({ lessonId: z.uuid(), memberId: z.uuid({ error: "Eklemek için bir üye seç." }) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Eklemek için bir üye seç." };
+  const { lessonId, memberId } = parsed.data;
+
+  const db = await getDb();
+  let bookingId: string;
+  try {
+    bookingId = await db.transaction(async (tx) => {
+      // Same lock as a member's request: the last seat can only be given once.
+      const [lesson] = await tx.select({ id: lessons.id, status: lessons.status, startsAt: lessons.startsAt, capacity: lessons.capacity, trainerId: lessons.trainerId }).from(lessons).where(eq(lessons.id, lessonId)).for("update");
+      if (!lesson || lesson.trainerId !== user.id) throw new BookingError("Ders bulunamadı.");
+      if (lesson.status !== "published") throw new BookingError("Bu ders iptal edilmiş.");
+      if (lesson.startsAt.getTime() <= Date.now()) throw new BookingError("Başlamış bir derse üye eklenemez.");
+
+      const [member] = await tx.select({ id: users.id }).from(users).where(and(eq(users.id, memberId), eq(users.role, "member")));
+      if (!member) throw new BookingError("Üye bulunamadı.");
+
+      const [existing] = await tx.select({ id: bookings.id, status: bookings.status }).from(bookings).where(and(eq(bookings.lessonId, lesson.id), eq(bookings.memberId, memberId)));
+      if (existing?.status === "approved") throw new BookingError("Bu üye zaten derste.");
+
+      // A pending request from the same member already holds a seat; approving it needs no free place.
+      if (existing?.status !== "pending") {
+        const [{ taken }] = await tx.select({ taken: sql<number>`count(*)::int` }).from(bookings).where(and(eq(bookings.lessonId, lesson.id), inArray(bookings.status, ["pending", "approved"])));
+        if (taken >= lesson.capacity) throw new BookingError("Bu derste boş yer yok.");
+      }
+
+      const now = new Date();
+      await tx.delete(waitlist).where(and(eq(waitlist.lessonId, lesson.id), eq(waitlist.memberId, memberId)));
+      if (existing) {
+        await tx.update(bookings).set({ status: "approved", decidedAt: now, attendance: null, effort: null, effortAt: null, updatedAt: now }).where(eq(bookings.id, existing.id));
+        return existing.id;
+      }
+      const [created] = await tx.insert(bookings).values({ lessonId: lesson.id, memberId, status: "approved", decidedAt: now }).returning({ id: bookings.id });
+      return created.id;
+    });
+  } catch (error) {
+    if (error instanceof BookingError) return { error: error.message };
+    throw error;
+  }
+
+  after(() => notifyMemberAdded(bookingId));
+  redirect(`/egitmen-paneli/dersler/${lessonId}?eklendi=${bookingId}`);
+}
+
+/** Member adds, changes or removes their playlist suggestion before the class. */
+export async function updatePlaylist(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ role: "member" });
+  const parsed = z.object({ bookingId: z.uuid(), playlistUrl: playlist }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values: keepValues(formData, ["playlistUrl"]) };
+
+  const db = await getDb();
+  const [booking] = await db.select({ status: bookings.status, startsAt: lessons.startsAt }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
+    .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id))).limit(1);
+  if (!booking || (booking.status !== "pending" && booking.status !== "approved")) return { error: "Bu rezervasyon için liste eklenemez." };
+  if (booking.startsAt.getTime() <= Date.now()) return { error: "Ders başladıktan sonra liste değiştirilemez." };
+
+  await db.update(bookings).set({ playlistUrl: parsed.data.playlistUrl, updatedAt: new Date() }).where(eq(bookings.id, parsed.data.bookingId));
+  refresh();
+  return { ok: true, message: parsed.data.playlistUrl ? "Çalma listen eğitmenine iletildi." : "Çalma listesi kaldırıldı." };
+}
+
+/** Full class: the member asks to be told when a seat frees up. */
+export async function joinWaitlist(_: FormState, formData: FormData): Promise<FormState> {
+  const lessonId = String(formData.get("lessonId") ?? "");
+  const user = await requireUser({ role: "member", next: `/dersler/${lessonId}` });
+  if (!isUuid(lessonId)) return { error: "Ders bulunamadı." };
+
+  const db = await getDb();
+  const [lesson] = await db.select({ status: lessons.status, startsAt: lessons.startsAt, capacity: lessons.capacity,
+    taken: sql<number>`(select count(*)::int from bookings b where b.lesson_id = "lessons"."id" and b.status in ('pending', 'approved'))`,
+    mine: sql<number>`(select count(*)::int from bookings b where b.lesson_id = "lessons"."id" and b.member_id = ${user.id} and b.status in ('pending', 'approved'))` })
+    .from(lessons).where(eq(lessons.id, lessonId)).limit(1);
+  if (!lesson || lesson.status !== "published" || lesson.startsAt.getTime() <= Date.now()) return { error: "Bu ders artık programda değil." };
+  if (lesson.mine) return { error: "Bu derste zaten bir rezervasyonun var." };
+  if (lesson.taken < lesson.capacity) return { error: "Bu derste şu an boş yer var; doğrudan talep gönderebilirsin." };
+
+  await db.insert(waitlist).values({ lessonId, memberId: user.id }).onConflictDoNothing();
+  refresh();
+  return { ok: true, message: "Bekleme listesine eklendin. Yer açılınca sana haber vereceğiz." };
+}
+
+export async function leaveWaitlist(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser({ role: "member" });
+  const lessonId = String(formData.get("lessonId") ?? "");
+  if (!isUuid(lessonId)) return { error: "Ders bulunamadı." };
+  await (await getDb()).delete(waitlist).where(and(eq(waitlist.lessonId, lessonId), eq(waitlist.memberId, user.id)));
+  refresh();
+  return { ok: true, message: "Bekleme listesinden çıktın." };
 }

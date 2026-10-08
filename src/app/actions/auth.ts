@@ -14,6 +14,7 @@ import { fieldErrors, keepValues, normalizePhone, type FormState } from "@/lib/f
 import { appUrl } from "@/lib/mail";
 import { sendPasswordResetEmail, sendWelcomeEmail } from "@/lib/notify";
 import { clearRateLimit, hitRateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request";
 
 const email = z.string().trim().toLowerCase().pipe(z.email({ error: "Geçerli bir e-posta adresi gir." }));
 const newPassword = z.string().min(8, { error: "Şifre en az 8 karakter olmalı." }).max(128, { error: "Şifre en fazla 128 karakter olabilir." });
@@ -44,9 +45,14 @@ export async function signup(_: FormState, formData: FormData): Promise<FormStat
   const parsed = signupSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
   const { name, email, phone, password, inviteCode } = parsed.data;
+  // Slows down probing which e-mails are members and guessing the trainer invite code.
+  const ip = await clientIp();
+  if (await hitRateLimit(`signup:${ip}`, 10, 60 * 60 * 1000)) return { error: "Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar dene.", values };
 
   let role: "member" | "trainer" = "member";
   if (inviteCode) {
+    // Per IP and studio-wide per day, so the code cannot be guessed from many addresses either.
+    if (await hitRateLimit(`invite:${ip}`, 5, 60 * 60 * 1000) || await hitRateLimit("invite:all", 30, 24 * 60 * 60 * 1000)) return { fieldErrors: { inviteCode: "Çok fazla deneme yapıldı. Kodu stüdyodan teyit et." }, values };
     if (!inviteCodeMatches(inviteCode)) return { fieldErrors: { inviteCode: "Davet kodu geçersiz. Kodu stüdyodan teyit et ya da alanı boş bırak." }, values };
     role = "trainer";
   }
@@ -73,14 +79,16 @@ export async function login(_: FormState, formData: FormData): Promise<FormState
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
 
   const limitKey = `login:${parsed.data.email}`;
-  if (hitRateLimit(limitKey, 8, 15 * 60 * 1000)) return { error: "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar dene.", values };
+  // Per account (guessing one password) and per IP (trying many accounts with leaked passwords).
+  const tooMany = await hitRateLimit(limitKey, 8, 15 * 60 * 1000) || await hitRateLimit(`login-ip:${await clientIp()}`, 30, 15 * 60 * 1000);
+  if (tooMany) return { error: "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar dene.", values };
 
   const db = await getDb();
   const [user] = await db.select({ id: users.id, role: users.role, passwordHash: users.passwordHash }).from(users).where(eq(users.email, parsed.data.email)).limit(1);
   const valid = await verifyPassword(parsed.data.password, user?.passwordHash ?? await dummyHash);
   if (!user || !valid) return { error: "E-posta ya da şifre hatalı.", values };
 
-  clearRateLimit(limitKey);
+  await clearRateLimit(limitKey);
   await createSession(user.id);
   redirect(safeNext(formData.get("sonra")) ?? homeFor(user));
 }
@@ -97,7 +105,7 @@ export async function requestPasswordReset(_: FormState, formData: FormData): Pr
   const parsed = z.object({ email }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
   const done: FormState = { ok: true, message: "Bu e-postayla kayıtlı bir hesap varsa, şifre yenileme bağlantısını gönderdik. Gelen kutunu (ve gereksiz klasörünü) kontrol et." };
-  if (hitRateLimit(`reset:${parsed.data.email}`, 3, 60 * 60 * 1000)) return done;
+  if (await hitRateLimit(`reset:${parsed.data.email}`, 3, 60 * 60 * 1000)) return done;
 
   const db = await getDb();
   const [user] = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.email, parsed.data.email)).limit(1);
@@ -122,10 +130,17 @@ export async function resetPassword(_: FormState, formData: FormData): Promise<F
   if (!token) return { error: "Bu bağlantının süresi dolmuş ya da daha önce kullanılmış. Yeni bir bağlantı iste." };
 
   const passwordHash = await hashPassword(parsed.data.password);
-  await db.transaction(async (tx) => {
+  const applied = await db.transaction(async (tx) => {
+    // Claim the token first: of two simultaneous submissions only one can mark it used.
+    const claimed = await tx.update(passwordResetTokens).set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.id, tokenId), isNull(passwordResetTokens.usedAt))).returning({ id: passwordResetTokens.id });
+    if (!claimed.length) return false;
     await tx.update(users).set({ passwordHash }).where(eq(users.id, token.userId));
-    await tx.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, tokenId));
+    // Any other reset link that was requested earlier stops working too.
+    await tx.delete(passwordResetTokens).where(and(eq(passwordResetTokens.userId, token.userId), isNull(passwordResetTokens.usedAt)));
+    return true;
   });
+  if (!applied) return { error: "Bu bağlantı az önce kullanıldı. Yeni bir bağlantı iste." };
   await deleteUserSessions(token.userId);
   await createSession(token.userId);
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, token.userId)).limit(1);
