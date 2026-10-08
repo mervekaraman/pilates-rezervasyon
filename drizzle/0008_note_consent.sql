@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "member_note_consent_at" timestamp with time zone;

@@ -29,6 +29,48 @@
       "when": 1791189539751,
       "tag": "0003_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791488327766,
+      "tag": "0004_attendance_effort",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791488811846,
+      "tag": "0005_booking_playlist",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791489117133,
+      "tag": "0006_waitlist_reminders_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791490337473,
+      "tag": "0007_enable_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791490434267,
+      "tag": "0008_note_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791490561733,
+      "tag": "0009_push_session",
+      "breakpoints": true
     }
   ]
 }

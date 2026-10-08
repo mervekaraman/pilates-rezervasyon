@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgEnum, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgEnum, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", ["member", "trainer"]);
 // Only reformer classes are offered for now; new types are added later with `ALTER TYPE ... ADD VALUE`.
@@ -42,6 +42,23 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   createdAt: createdAt(),
 });
 
+// A confirmed request to change the login e-mail; the link goes to the new address.
+export const emailChangeTokens = pgTable("email_change_tokens", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  newEmail: text("new_email").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+// Shared counter for login/reset attempts, so limits hold across every server instance.
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
+
 export const lessons = pgTable("lessons", {
   id: uuid("id").primaryKey().defaultRandom(),
   trainerId: uuid("trainer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
@@ -63,21 +80,44 @@ export const lessons = pgTable("lessons", {
   check("lessons_ends_after_start", sql`${table.endsAt} > ${table.startsAt}`),
 ]);
 
+// Marked by the trainer once the class has started; unmarked approved bookings count as attended.
+export const attendance = pgEnum("attendance", ["attended", "no_show"]);
+
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
   lessonId: uuid("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
   memberId: uuid("member_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   status: bookingStatus("status").notNull().default("pending"),
   memberNote: text("member_note"),
+  // When the member gave explicit consent (KVKK md. 6) to share the note, which may hold health data.
+  memberNoteConsentAt: timestamp("member_note_consent_at", { withTimezone: true }),
+  // Member's own Spotify playlist suggestion for the class (normalised open.spotify.com link).
+  playlistUrl: text("playlist_url"),
   trainerNote: text("trainer_note"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  attendance: attendance("attendance"),
+  // Member's rating of how hard the class felt (RPE, 1 = çok hafif … 10 = maksimum).
+  effort: smallint("effort"),
+  effortAt: timestamp("effort_at", { withTimezone: true }),
+  // Set when the day-before reminder went out, so the daily job never sends it twice.
+  reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   // One row per member per lesson; a cancelled request is re-opened instead of duplicated.
   uniqueIndex("bookings_lesson_member_unique").on(table.lessonId, table.memberId),
   index("bookings_member_idx").on(table.memberId),
+  check("bookings_effort_range", sql`${table.effort} between 1 and 10`),
 ]);
+
+// Members waiting for a seat in a full class; they are told when one frees up.
+export const waitlist = pgTable("waitlist", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  lessonId: uuid("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
+  memberId: uuid("member_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [uniqueIndex("waitlist_lesson_member_unique").on(table.lessonId, table.memberId), index("waitlist_member_idx").on(table.memberId)]);
 
 export const reviews = pgTable("reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -110,6 +150,9 @@ export const notifications = pgTable("notifications", {
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Tied to the sign-in it was made in: signing out (or every session ending) silences the device,
+  // so the next person on a shared phone never sees someone else's notifications.
+  sessionId: text("session_id").references(() => sessions.id, { onDelete: "cascade" }),
   endpoint: text("endpoint").notNull(),
   p256dh: text("p256dh").notNull(),
   auth: text("auth").notNull(),
@@ -133,4 +176,5 @@ export type Booking = typeof bookings.$inferSelect;
 export type LessonType = (typeof lessonType.enumValues)[number];
 export type LessonLevel = (typeof lessonLevel.enumValues)[number];
 export type BookingStatus = (typeof bookingStatus.enumValues)[number];
+export type Attendance = (typeof attendance.enumValues)[number];
 export type NotificationKind = (typeof notificationKind.enumValues)[number];
