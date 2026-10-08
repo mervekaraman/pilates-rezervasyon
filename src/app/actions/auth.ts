@@ -111,6 +111,7 @@ export async function requestPasswordReset(_: FormState, formData: FormData): Pr
   const [user] = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.email, parsed.data.email)).limit(1);
   if (user) {
     const token = newToken();
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
     await db.insert(passwordResetTokens).values({ id: hashToken(token), userId: user.id, expiresAt: new Date(Date.now() + RESET_MINUTES * 60 * 1000) });
     after(() => sendPasswordResetEmail(user, `${appUrl()}/sifre-sifirlama/yeni?token=${token}`));
   }

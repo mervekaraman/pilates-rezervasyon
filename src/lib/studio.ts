@@ -9,8 +9,10 @@ export const studio = {
   secondaryImage: "/images/flowly/studio-alt.webp",
   openDaysLabel: "Pazartesi – Cumartesi",
   cancellationHours: 12,
-  // Data controller (veri sorumlusu) for the KVKK notice: the studio's registered legal name.
-  legalName: process.env.STUDIO_LEGAL_NAME ?? "",
+  // Data controller (veri sorumlusu) for the KVKK notice: the studio's registered legal name,
+  // and the address KVKK requests go to (falls back to the studio e-mail).
+  legalName: process.env.LEGAL_ENTITY_NAME ?? "",
+  kvkkEmail: process.env.KVKK_CONTACT_EMAIL ?? "",
   address: process.env.STUDIO_ADDRESS ?? "",
   phone: process.env.STUDIO_PHONE ?? "",
   email: process.env.STUDIO_EMAIL ?? "",

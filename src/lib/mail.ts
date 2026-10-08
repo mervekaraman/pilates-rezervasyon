@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { emailOutbox } from "@/db/schema";
 import { maskEmail } from "@/lib/privacy";
@@ -32,8 +33,6 @@ type Email = {
   sensitive?: boolean;
 };
 
-
-
 /** Sends through SMTP when configured; otherwise the message is only recorded (visible at /gelistirici/e-postalar in development). */
 export async function sendEmail(email: Email) {
   const { html, text } = render(email);
@@ -62,7 +61,7 @@ export async function sendEmail(email: Email) {
   // has really gone out (or in production) the link is blanked so a database leak cannot reuse it.
   const keepLink = !email.sensitive || (status !== "sent" && process.env.NODE_ENV !== "production");
   const stored = keepLink ? { html, text } : redact({ html, text }, email.action?.href);
-  await (await getDb()).insert(emailOutbox).values({ to: email.to, subject: email.subject, html: stored.html, text: stored.text, status, error });
+  await (await getDb()).insert(emailOutbox).values({ to: email.to, subject: email.subject, html: stored.html, text: stored.text, status, error, retryable: !email.sensitive });
 }
 
 function redact(copy: { html: string; text: string }, href: string | undefined) {
@@ -70,6 +69,26 @@ function redact(copy: { html: string; text: string }, href: string | undefined) 
   const absolute = href.startsWith("http") ? href : `${appUrl()}${href}`;
   const hidden = "[gizli bağlantı]";
   return { html: copy.html.split(escape(absolute)).join(hidden).split(absolute).join(hidden), text: copy.text.split(absolute).join(hidden) };
+}
+
+/** Retries non-sensitive failed messages. Password reset mail is intentionally never replayed. */
+export async function retryFailedEmails(limit = 25) {
+  const transport = getTransporter();
+  if (!transport) throw new Error("SMTP ayarlı değil.");
+  const db = await getDb();
+  const rows = await db.select().from(emailOutbox)
+    .where(and(eq(emailOutbox.status, "failed"), eq(emailOutbox.retryable, true))).limit(limit);
+  let sent = 0;
+  for (const row of rows) {
+    try {
+      await transport.sendMail({ from: process.env.MAIL_FROM ?? `${studio.name} <no-reply@localhost>`, to: row.to, subject: row.subject, html: row.html, text: row.text });
+      await db.update(emailOutbox).set({ status: "sent", error: null, attempts: row.attempts + 1 }).where(eq(emailOutbox.id, row.id));
+      sent += 1;
+    } catch (cause) {
+      await db.update(emailOutbox).set({ error: cause instanceof Error ? cause.message : String(cause), attempts: row.attempts + 1 }).where(eq(emailOutbox.id, row.id));
+    }
+  }
+  return { attempted: rows.length, sent };
 }
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);

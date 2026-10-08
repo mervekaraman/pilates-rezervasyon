@@ -9,7 +9,8 @@ export const metadata = { title: "Aydınlatma metni ve kullanım koşulları" };
 // (retention periods in src/lib/jobs.ts, processors in README); keep them in sync when either changes.
 export default function PrivacyPage() {
   const controller = studio.legalName || studio.name;
-  const contact = [studio.address, studio.email, studio.phone].filter(Boolean).join(" · ");
+  const kvkkEmail = studio.kvkkEmail || studio.email;
+  const contact = [studio.address, kvkkEmail, studio.phone].filter(Boolean).join(" · ");
   return <AppShell className="legal-screen">
     <section>
       <PageHeading eyebrow="KVKK" title="Aydınlatma metni" sub={`${studio.name} rezervasyon uygulamasında kişisel verilerinin nasıl işlendiğini sade bir dille anlatıyoruz.`}/>
@@ -61,7 +62,7 @@ export default function PrivacyPage() {
           <li>Ad, telefon ve e-posta bilgini <Link href="/profil/ayarlar">Profil › Ayarlar</Link>’dan güncelleyebilirsin.</li>
           <li>Hakkında tutulan bütün verileri aynı sayfadan <strong>“Verilerimi indir”</strong> ile dosya olarak alabilirsin.</li>
           <li>Hesabını aynı sayfadan <strong>kalıcı olarak silebilirsin</strong>; hesabın, rezervasyonların, yorumların, bildirimlerin ve sana gönderilen e-postaların kopyaları silinir.</li>
-          <li>Diğer talepler için {studio.email ? <a href={`mailto:${studio.email}`}>{studio.email}</a> : "stüdyoya"} başvurabilirsin; en geç 30 gün içinde yanıtlanır.</li>
+          <li>Diğer talepler için {kvkkEmail ? <a href={`mailto:${kvkkEmail}`}>{kvkkEmail}</a> : "stüdyoya"} başvurabilirsin; en geç 30 gün içinde yanıtlanır.</li>
         </ul>
 
         <h2 id="kosullar">Kullanım koşulları</h2>

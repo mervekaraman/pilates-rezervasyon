@@ -1,5 +1,5 @@
 {
-  "id": "d93f2ff2-99ac-4324-934f-8b3732a6ee05",
+  "id": "4562f33f-9186-4b8f-ae58-bb86d2abb0eb",
   "prevId": "e618d1d2-70f1-46b7-8cb1-ecb49683d1eb",
   "version": "7",
   "dialect": "postgresql",
@@ -35,6 +35,19 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "attendance": {
+          "name": "attendance",
+          "type": "attendance_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attendance_marked_at": {
+          "name": "attendance_marked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "member_note": {
           "name": "member_note",
           "type": "text",
@@ -49,25 +62,6 @@
         },
         "decided_at": {
           "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attendance": {
-          "name": "attendance",
-          "type": "attendance",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "effort": {
-          "name": "effort",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "effort_at": {
-          "name": "effort_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -156,12 +150,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "bookings_effort_range": {
-          "name": "bookings_effort_range",
-          "value": "\"bookings\".\"effort\" between 1 and 10"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.email_outbox": {
@@ -211,6 +200,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "retryable": {
+          "name": "retryable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "created_at": {
           "name": "created_at",
@@ -628,6 +631,54 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.rate_limits": {
+      "name": "rate_limits",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "reset_at": {
+          "name": "reset_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "rate_limits_reset_idx": {
+          "name": "rate_limits_reset_idx",
+          "columns": [
+            {
+              "expression": "reset_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.reviews": {
       "name": "reviews",
       "schema": "",
@@ -685,6 +736,13 @@
         },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -924,8 +982,8 @@
     }
   },
   "enums": {
-    "public.attendance": {
-      "name": "attendance",
+    "public.attendance_status": {
+      "name": "attendance_status",
       "schema": "public",
       "values": [
         "attended",

@@ -81,7 +81,7 @@ export async function listMemberBookings(memberId: string) {
 export async function getMemberBooking(memberId: string, bookingId: string) {
   if (!isUuid(bookingId)) return null;
   const db = await getDb();
-  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, decidedAt: bookings.decidedAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, type: lessons.type, lessonStatus: lessons.status, trainerId: trainer.id, trainerName: trainer.name, trainerAvatar: trainer.avatarUrl, reviewId: reviews.id, attendance: bookings.attendance, effort: bookings.effort })
+  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, decidedAt: bookings.decidedAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, type: lessons.type, lessonStatus: lessons.status, trainerId: trainer.id, trainerName: trainer.name, trainerAvatar: trainer.avatarUrl, reviewId: reviews.id, reviewRating: reviews.rating, reviewComment: reviews.comment, recommendsTrainer: reviews.recommendsTrainer, recommendsStudio: reviews.recommendsStudio, attendance: bookings.attendance, effort: bookings.effort })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).innerJoin(trainer, eq(trainer.id, lessons.trainerId)).leftJoin(reviews, eq(reviews.bookingId, bookings.id))
     .where(and(eq(bookings.id, bookingId), eq(bookings.memberId, memberId))).limit(1);
   return row ?? null;
@@ -144,7 +144,7 @@ export async function listMemberOverview(search?: string) {
   const term = search?.trim().replace(/[\\%_]/g, (char) => `\\${char}`);
   const digits = term?.replace(/\D/g, "") ?? "";
   const filter = term ? or(ilike(users.name, `%${term}%`), ilike(users.email, `%${term}%`), ...(digits.length >= 3 ? [ilike(sql`regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g')`, `%${digits}%`)] : [])) : undefined;
-  const attended = sql`${bookings.status} = 'approved' and ${lessons.startsAt} < ${now} and ${bookings.attendance} is distinct from 'no_show'`;
+  const attended = sql`${bookings.attendance} = 'attended'`;
   return db.select({
     id: users.id, name: users.name, email: users.email, phone: users.phone, avatarUrl: users.avatarUrl, joinedAt: users.createdAt,
     completed: sql<number>`count(*) filter (where ${attended})::int`,
@@ -174,7 +174,7 @@ export async function memberStats(userId: string) {
   const db = await getDb();
   const now = new Date();
   const [row] = await db.select({
-    completed: sql<number>`count(*) filter (where ${bookings.status} = 'approved' and ${lessons.startsAt} < ${now})::int`,
+    completed: sql<number>`count(*) filter (where ${bookings.attendance} = 'attended')::int`,
     upcoming: sql<number>`count(*) filter (where ${bookings.status} in ('pending', 'approved') and ${lessons.startsAt} >= ${now})::int`,
   }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).where(eq(bookings.memberId, userId));
   const [reviewRow] = await db.select({ count: sql<number>`count(*)::int` }).from(reviews).where(eq(reviews.memberId, userId));
@@ -209,12 +209,12 @@ export async function listTrainerRequests(trainerId: string, status: RequestFilt
 export async function getTrainerRequest(trainerId: string, bookingId: string) {
   if (!isUuid(bookingId)) return null;
   const db = await getDb();
-  const [row] = await db.select({ id: bookings.id, status: bookings.status, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, capacity: lessons.capacity, taken: takenSeats, memberId: member.id, memberName: member.name, memberAvatar: member.avatarUrl, memberEmail: member.email, memberPhone: member.phone, memberSince: member.createdAt })
+  const [row] = await db.select({ id: bookings.id, status: bookings.status, attendance: bookings.attendance, memberNote: bookings.memberNote, playlistUrl: bookings.playlistUrl, trainerNote: bookings.trainerNote, createdAt: bookings.createdAt, lessonId: lessons.id, startsAt: lessons.startsAt, durationMin: lessons.durationMin, level: lessons.level, capacity: lessons.capacity, taken: takenSeats, memberId: member.id, memberName: member.name, memberAvatar: member.avatarUrl, memberEmail: member.email, memberPhone: member.phone, memberSince: member.createdAt })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).innerJoin(member, eq(member.id, bookings.memberId))
     .where(and(eq(bookings.id, bookingId), eq(lessons.trainerId, trainerId))).limit(1);
   if (!row) return null;
   const [history] = await db.select({ completed: sql<number>`count(*)::int` }).from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
-    .where(and(eq(bookings.memberId, row.memberId), eq(bookings.status, "approved"), lt(lessons.startsAt, new Date())));
+    .where(and(eq(bookings.memberId, row.memberId), eq(bookings.attendance, "attended")));
   return { ...row, completedLessons: history?.completed ?? 0 };
 }
 

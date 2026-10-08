@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-import { cleanUp, sendTomorrowReminders } from "@/lib/jobs";
+import { cleanUp, retryMail, sendTomorrowReminders } from "@/lib/jobs";
 
-// Daily job (Vercel Cron, see vercel.json): tomorrow's reminders + database clean-up.
+// Daily job (Vercel Cron, see vercel.json): tomorrow's reminders, database clean-up, failed-mail retry.
 // Vercel calls it with "Authorization: Bearer <CRON_SECRET>"; nobody else can trigger it.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -12,5 +12,6 @@ export async function GET(request: Request) {
 
   const reminders = await sendTomorrowReminders();
   const removed = await cleanUp();
-  return Response.json({ ok: true, reminders, removed });
+  const mail = await retryMail();
+  return Response.json({ ok: true, reminders, removed, mail });
 }

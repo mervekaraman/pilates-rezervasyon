@@ -89,3 +89,13 @@ test("Supabase veri API'sine karşı bütün tablolarda satır düzeyi güvenlik
   assert.deepEqual(open, [], `RLS kapalı tablolar: ${open.join(", ")} — yeni tabloya migration'da ENABLE ROW LEVEL SECURITY ekleyin`);
   await db.close();
 });
+
+test("katılım durumu rezervasyon kararından ayrı ve yalnızca tanımlı değerlerdedir", async () => {
+  const { db, trainerId } = await migratedDb();
+  const { rows: [member] } = await db.query(`insert into users (name, email, password_hash) values ('Üye', 'u@test', 'x') returning id`);
+  const { rows: [lesson] } = await db.query(`insert into lessons (trainer_id, starts_at, ends_at, duration_min, capacity) values ($1, '2026-10-01T10:00:00+03:00', '2026-10-01T10:50:00+03:00', 50, 4) returning id`, [trainerId]);
+  const { rows: [booking] } = await db.query(`insert into bookings (lesson_id, member_id, status, attendance) values ($1, $2, 'approved', 'attended') returning status, attendance`, [lesson.id, member.id]);
+  assert.deepEqual(booking, { status: "approved", attendance: "attended" });
+  await assert.rejects(db.query(`update bookings set attendance = 'unknown' where lesson_id = $1`, [lesson.id]), { code: "22P02" });
+  await db.close();
+});

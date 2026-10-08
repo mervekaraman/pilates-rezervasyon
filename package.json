@@ -2,6 +2,7 @@
   "name": "pilates-rezervasyon",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --port 3040",
     "build": "next build",
@@ -9,9 +10,13 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/*.test.mjs\"",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "check:production": "node scripts/check-production-env.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/migrate.ts",
-    "db:reset": "node scripts/reset-local-db.mjs"
+    "db:reset": "node scripts/reset-local-db.mjs",
+    "db:cleanup": "node --conditions react-server --env-file-if-exists=.env.local --import tsx scripts/cleanup.ts",
+    "mail:retry": "node --conditions react-server --env-file-if-exists=.env.local --import tsx scripts/retry-emails.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

@@ -1,6 +1,6 @@
 {
-  "id": "d493f425-eafe-480b-a15a-7178d9a3d421",
-  "prevId": "8ce16ef8-144b-4c63-8086-cf2cffd1ca48",
+  "id": "41a6eeb5-0899-40db-b429-2d4d3e81b6ce",
+  "prevId": "b7adb9cc-b602-4370-86e3-1cbaf6c63584",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -35,9 +35,28 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "attendance": {
+          "name": "attendance",
+          "type": "attendance_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attendance_marked_at": {
+          "name": "attendance_marked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "member_note": {
           "name": "member_note",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "member_note_consent_at": {
+          "name": "member_note_consent_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -56,13 +75,6 @@
         "decided_at": {
           "name": "decided_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attendance": {
-          "name": "attendance",
-          "type": "attendance",
-          "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
         },
@@ -287,6 +299,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "retryable": {
+          "name": "retryable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "created_at": {
           "name": "created_at",
@@ -625,6 +651,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "endpoint": {
           "name": "endpoint",
           "type": "text",
@@ -696,6 +728,19 @@
           ],
           "onUpdate": "no action",
           "onDelete": "cascade"
+        },
+        "push_subscriptions_session_id_sessions_id_fk": {
+          "name": "push_subscriptions_session_id_sessions_id_fk",
+          "tableFrom": "push_subscriptions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "tableTo": "sessions",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -716,9 +761,10 @@
         },
         "count": {
           "name": "count",
-          "type": "integer",
+          "type": "smallint",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": 1
         },
         "reset_at": {
           "name": "reset_at",
@@ -727,7 +773,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "rate_limits_reset_idx": {
+          "name": "rate_limits_reset_idx",
+          "columns": [
+            {
+              "expression": "reset_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -792,6 +854,13 @@
         },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -1140,8 +1209,8 @@
     }
   },
   "enums": {
-    "public.attendance": {
-      "name": "attendance",
+    "public.attendance_status": {
+      "name": "attendance_status",
       "schema": "public",
       "values": [
         "attended",

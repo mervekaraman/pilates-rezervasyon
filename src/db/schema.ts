@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgEnum, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, pgEnum, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", ["member", "trainer"]);
 // Only reformer classes are offered for now; new types are added later with `ALTER TYPE ... ADD VALUE`.
@@ -7,6 +7,7 @@ export const lessonType = pgEnum("lesson_type", ["reformer"]);
 export const lessonLevel = pgEnum("lesson_level", ["tum", "baslangic", "orta", "ileri"]);
 export const lessonStatus = pgEnum("lesson_status", ["published", "cancelled"]);
 export const bookingStatus = pgEnum("booking_status", ["pending", "approved", "rejected", "cancelled"]);
+export const attendanceStatus = pgEnum("attendance_status", ["attended", "no_show"]);
 export const emailStatus = pgEnum("email_status", ["sent", "logged", "failed"]);
 export const notificationKind = pgEnum("notification_kind", ["request", "approved", "rejected", "cancelled", "review", "info"]);
 
@@ -52,13 +53,6 @@ export const emailChangeTokens = pgTable("email_change_tokens", {
   createdAt: createdAt(),
 });
 
-// Shared counter for login/reset attempts, so limits hold across every server instance.
-export const rateLimits = pgTable("rate_limits", {
-  key: text("key").primaryKey(),
-  count: integer("count").notNull(),
-  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
-});
-
 export const lessons = pgTable("lessons", {
   id: uuid("id").primaryKey().defaultRandom(),
   trainerId: uuid("trainer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
@@ -80,14 +74,13 @@ export const lessons = pgTable("lessons", {
   check("lessons_ends_after_start", sql`${table.endsAt} > ${table.startsAt}`),
 ]);
 
-// Marked by the trainer once the class has started; unmarked approved bookings count as attended.
-export const attendance = pgEnum("attendance", ["attended", "no_show"]);
-
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
   lessonId: uuid("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
   memberId: uuid("member_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   status: bookingStatus("status").notNull().default("pending"),
+  attendance: attendanceStatus("attendance"),
+  attendanceMarkedAt: timestamp("attendance_marked_at", { withTimezone: true }),
   memberNote: text("member_note"),
   // When the member gave explicit consent (KVKK md. 6) to share the note, which may hold health data.
   memberNoteConsentAt: timestamp("member_note_consent_at", { withTimezone: true }),
@@ -95,7 +88,6 @@ export const bookings = pgTable("bookings", {
   playlistUrl: text("playlist_url"),
   trainerNote: text("trainer_note"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
-  attendance: attendance("attendance"),
   // Member's rating of how hard the class felt (RPE, 1 = çok hafif … 10 = maksimum).
   effort: smallint("effort"),
   effortAt: timestamp("effort_at", { withTimezone: true }),
@@ -129,6 +121,7 @@ export const reviews = pgTable("reviews", {
   recommendsTrainer: boolean("recommends_trainer").notNull().default(false),
   recommendsStudio: boolean("recommends_studio").notNull().default(false),
   createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("reviews_booking_unique").on(table.bookingId),
   check("reviews_rating_range", sql`${table.rating} between 1 and 5`),
@@ -167,8 +160,17 @@ export const emailOutbox = pgTable("email_outbox", {
   text: text("text").notNull(),
   status: emailStatus("status").notNull(),
   error: text("error"),
+  retryable: boolean("retryable").notNull().default(true),
+  attempts: smallint("attempts").notNull().default(1),
   createdAt: createdAt(),
 });
+
+// Shared across all server instances so login/reset protection also works on serverless deployments.
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: smallint("count").notNull().default(1),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+}, (table) => [index("rate_limits_reset_idx").on(table.resetAt)]);
 
 export type User = typeof users.$inferSelect;
 export type Lesson = typeof lessons.$inferSelect;
@@ -176,5 +178,5 @@ export type Booking = typeof bookings.$inferSelect;
 export type LessonType = (typeof lessonType.enumValues)[number];
 export type LessonLevel = (typeof lessonLevel.enumValues)[number];
 export type BookingStatus = (typeof bookingStatus.enumValues)[number];
-export type Attendance = (typeof attendance.enumValues)[number];
+export type AttendanceStatus = (typeof attendanceStatus.enumValues)[number];
 export type NotificationKind = (typeof notificationKind.enumValues)[number];

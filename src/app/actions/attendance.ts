@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { attendance, bookings, lessons } from "@/db/schema";
+import { attendanceStatus, bookings, lessons } from "@/db/schema";
 import { requireUser } from "@/lib/dal";
 import type { FormState } from "@/lib/forms";
 import { isUuid } from "@/lib/queries";
@@ -24,8 +24,9 @@ export async function rateEffort(_: FormState, formData: FormData): Promise<Form
   const [booking] = await db.select({ status: bookings.status, attendance: bookings.attendance, startsAt: lessons.startsAt, durationMin: lessons.durationMin, lessonStatus: lessons.status })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId))
     .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id))).limit(1);
-  // Only members who actually took the class: approved, not marked absent, class finished.
-  if (!booking || booking.status !== "approved" || booking.lessonStatus !== "published" || booking.attendance === "no_show") return { error: "Efor puanını yalnızca katıldığın derslere verebilirsin." };
+  // Only members who actually took the class: approved and marked present by the trainer.
+  if (!booking || booking.status !== "approved" || booking.lessonStatus !== "published") return { error: "Efor puanını yalnızca katıldığın derslere verebilirsin." };
+  if (booking.attendance !== "attended") return { error: booking.attendance === "no_show" ? "Eğitmenin bu derse katılmadığını işaretledi." : "Efor puanı, eğitmenin katılımını işaretlemesinden sonra açılır." };
   if (!ended(booking)) return { error: "Efor puanı ders bittikten sonra açılır." };
 
   await db.update(bookings).set({ effort: parsed.data.effort, effortAt: new Date() }).where(eq(bookings.id, parsed.data.bookingId));
@@ -33,10 +34,10 @@ export async function rateEffort(_: FormState, formData: FormData): Promise<Form
   return { ok: true, message: "Efor puanın kaydedildi." };
 }
 
-/** Trainer marks who came; a no-show cannot rate effort or review the class. */
+/** Trainer marks who came; only members marked present can rate effort and review the class. */
 export async function markAttendance(_: FormState, formData: FormData): Promise<FormState> {
   const user = await requireUser({ role: "trainer" });
-  const parsed = z.object({ bookingId: z.string().refine(isUuid), value: z.enum(attendance.enumValues) }).safeParse(Object.fromEntries(formData));
+  const parsed = z.object({ bookingId: z.string().refine(isUuid), value: z.enum(attendanceStatus.enumValues) }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Geçersiz işlem." };
 
   const db = await getDb();
@@ -48,6 +49,7 @@ export async function markAttendance(_: FormState, formData: FormData): Promise<
 
   await db.update(bookings).set({
     attendance: parsed.data.value,
+    attendanceMarkedAt: new Date(),
     // A member marked absent has no effort to report.
     ...(parsed.data.value === "no_show" ? { effort: null, effortAt: null } : {}),
     updatedAt: new Date(),

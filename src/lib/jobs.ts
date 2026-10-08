@@ -3,6 +3,7 @@ import { and, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-o
 import { getDb } from "@/db";
 import { bookings, emailChangeTokens, emailOutbox, lessons, notifications, passwordResetTokens, rateLimits, sessions, waitlist } from "@/db/schema";
 import { addDays, atStudioTime, todayKey } from "@/lib/format";
+import { isMailConfigured, retryFailedEmails } from "@/lib/mail";
 import { notifyLessonReminder } from "@/lib/notify";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -48,4 +49,10 @@ export async function cleanUp() {
       .where(and(or(isNotNull(bookings.memberNote), isNotNull(bookings.trainerNote)), inArray(bookings.lessonId, db.select({ id: lessons.id }).from(lessons).where(lt(lessons.startsAt, new Date(now - 182 * DAY)))))).returning({ id: bookings.id })),
     waitlist: await count(db.delete(waitlist).where(inArray(waitlist.lessonId, db.select({ id: lessons.id }).from(lessons).where(lt(lessons.startsAt, sql`now()`)))).returning({ id: waitlist.id })),
   };
+}
+
+/** Second chance for e-mails that failed (SMTP hiccups); secret links are never replayed. */
+export async function retryMail() {
+  if (!isMailConfigured()) return { attempted: 0, sent: 0 };
+  return retryFailedEmails();
 }

@@ -25,10 +25,11 @@ export default async function BookingDetailPage({ params }: PageProps<"/rezervas
   const lockedReason = booking.status === "approved" && hoursLeft < studio.cancellationHours
     ? `Derse ${studio.cancellationHours} saatten az kaldığı için çevrimiçi iptal kapandı. Gelemeyeceksen lütfen stüdyoya haber ver.` : undefined;
   const absent = booking.attendance === "no_show";
-  // Effort opens once the class is over, only for members who were there.
+  const attended = booking.attendance === "attended";
+  // Effort and reviews open once the class is over, only for members the trainer marked as present.
   const ended = hasStarted(new Date(booking.startsAt.getTime() + booking.durationMin * 60_000));
-  const canRate = ended && booking.status === "approved" && booking.lessonStatus === "published" && !absent;
-  const status = absent ? "Katılmadın" : finished && booking.status === "approved" ? "Katıldın" : bookingStatusLabels[booking.status];
+  const canRate = ended && booking.status === "approved" && booking.lessonStatus === "published" && attended;
+  const status = finished && booking.status === "approved" ? attended ? "Katıldın" : absent ? "Katılmadın" : "Katılım bekleniyor" : bookingStatusLabels[booking.status];
 
   return <AppShell className="booking-detail-screen" nav={false}>
     <TopBar back="/rezervasyonlar" title="Rezervasyon"/>
@@ -49,8 +50,9 @@ export default async function BookingDetailPage({ params }: PageProps<"/rezervas
       </div>}
       <div className="detail-actions">
         {absent && <Notice>Eğitmenin bu derse katılmadığını işaretledi. Bir yanlışlık varsa stüdyoya haber ver.</Notice>}
+        {finished && booking.status === "approved" && !absent && !attended && <p className="muted-note">Eğitmenin katılımını işaretlediğinde efor puanı ve değerlendirme burada açılacak.</p>}
         {canRate && <section id="efor" className="effort-card"><EffortForm bookingId={booking.id} current={booking.effort}/></section>}
-        {finished && booking.status === "approved" && !absent && (booking.reviewId ? <p className="muted-note">Bu dersi değerlendirdin, teşekkürler.</p> : <ButtonLink href={`/yorum-yaz?r=${booking.id}`} variant={canRate && booking.effort === null ? "outline" : "primary"}>Dersi Değerlendir</ButtonLink>)}
+        {finished && attended && (booking.reviewId ? <ButtonLink href={`/yorum-yaz?r=${booking.id}`} variant="outline">Yorumu Düzenle</ButtonLink> : <ButtonLink href={`/yorum-yaz?r=${booking.id}`} variant={canRate && booking.effort === null ? "outline" : "primary"}>Dersi Değerlendir</ButtonLink>)}
         {!finished && active && <>
           {booking.status === "approved" && booking.lessonStatus === "published" && <div className="calendar-actions">
             <a href={`/rezervasyonlar/${booking.id}/takvim`} className="flowly-button is-outline"><FlowlyIcon name="calendar" size={20}/>Takvime Ekle</a>
@@ -59,6 +61,7 @@ export default async function BookingDetailPage({ params }: PageProps<"/rezervas
           {booking.status === "pending" && <WhatsAppLink href={whatsappLink(studio.phone, studioRequestMessage({ memberName: user.name, startsAt: booking.startsAt }))}>Stüdyoya WhatsApp&apos;tan yaz</WhatsAppLink>}
           <section className="playlist-card" aria-label="Müzik önerin"><PlaylistForm bookingId={booking.id} current={booking.playlistUrl}/></section>
           <p className="policy-line">Derse {studio.cancellationHours} saat kalana kadar iptal edebilirsin.</p>
+          {!lockedReason && <ButtonLink href={`/rezervasyonlar/${booking.id}/degistir`} variant="outline">Tarih veya Saati Değiştir</ButtonLink>}
           {studio.address && <ButtonLink href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${studio.name} ${studio.address}`)}`} variant="outline">Yol Tarifi Al</ButtonLink>}
           <CancelBookingForm bookingId={booking.id} lockedReason={lockedReason}/>
         </>}

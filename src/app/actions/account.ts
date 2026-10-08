@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gt, ilike, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, eq, gt, ilike, inArray, isNull, or } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
@@ -70,17 +70,18 @@ export async function createReview(_: FormState, formData: FormData): Promise<Fo
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
 
   const db = await getDb();
-  const [booking] = await db.select({ status: bookings.status, attendance: bookings.attendance, startsAt: lessons.startsAt, trainerId: lessons.trainerId, reviewId: reviews.id })
+  const [booking] = await db.select({ status: bookings.status, attendance: bookings.attendance, trainerId: lessons.trainerId, reviewId: reviews.id })
     .from(bookings).innerJoin(lessons, eq(lessons.id, bookings.lessonId)).leftJoin(reviews, eq(reviews.bookingId, bookings.id))
-    .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id), lt(lessons.startsAt, new Date()))).limit(1);
-  if (!booking || booking.status !== "approved" || booking.attendance === "no_show") return { error: "Sadece katıldığın dersleri değerlendirebilirsin.", values };
-  if (booking.reviewId) return { error: "Bu dersi zaten değerlendirdin.", values };
+    .where(and(eq(bookings.id, parsed.data.bookingId), eq(bookings.memberId, user.id))).limit(1);
+  if (!booking || booking.status !== "approved" || booking.attendance !== "attended") return { error: "Sadece eğitmenin katılımını onayladığı dersleri değerlendirebilirsin.", values };
 
-  await db.insert(reviews).values({
+  const reviewValues = {
     bookingId: parsed.data.bookingId, memberId: user.id, trainerId: booking.trainerId, rating: parsed.data.rating, comment: parsed.data.comment,
     recommendsTrainer: formData.get("recommendsTrainer") === "on", recommendsStudio: formData.get("recommendsStudio") === "on",
-  }).onConflictDoNothing();
-  redirect("/yorumlar?gonderildi=1");
+  };
+  if (booking.reviewId) await db.update(reviews).set({ ...reviewValues, updatedAt: new Date() }).where(and(eq(reviews.id, booking.reviewId), eq(reviews.memberId, user.id)));
+  else await db.insert(reviews).values(reviewValues);
+  redirect(`/yorumlar?${booking.reviewId ? "guncellendi" : "gonderildi"}=1`);
 }
 
 const emailSchema = z.string().trim().toLowerCase().pipe(z.email({ error: "Geçerli bir e-posta adresi gir." }));
